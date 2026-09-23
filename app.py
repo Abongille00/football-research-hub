@@ -95,13 +95,25 @@ if missing:
 tab1, tab2, tab3 = st.tabs(["📊 Team Research", "🎯 Market Tester", "📥 Data Format"])
 
 with tab1:
-        teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
+    teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
+
     team_search = st.text_input("Search team", "")
-    filtered_teams = [t for t in teams if team_search.lower() in t.lower()]
+
+    filtered_teams = [
+        t for t in teams
+        if team_search.lower() in t.lower()
+    ]
+
     team = st.selectbox("Team", filtered_teams)
 
     venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
-    n = st.slider("Number of recent matches", 3, min(15, max(3, len(data))), 5)
+
+    n = st.slider(
+        "Number of recent matches",
+        3,
+        min(15, max(3, len(data))),
+        5
+    )
 
     matches = team_matches(data, team)
 

@@ -104,51 +104,51 @@ with tab1:
         if team_search.lower() in t.lower()
     ]
 
-team = st.selectbox("Team", filtered_teams)
+    team = st.selectbox("Team", filtered_teams)
 
-seasons = ["All"] + sorted(data["season"].dropna().unique().tolist(), reverse=True)
-season_filter = st.selectbox("Season", seasons)
+    seasons = ["All"] + sorted(
+        data["season"].dropna().unique().tolist(),
+        reverse=True
+    )
+    season_filter = st.selectbox("Season", seasons)
 
-competitions = ["All"] + sorted(data["competition"].dropna().unique().tolist())
-competition_filter = st.selectbox("Competition", competitions)
+    competitions = ["All"] + sorted(
+        data["competition"].dropna().unique().tolist()
+    )
+    competition_filter = st.selectbox("Competition", competitions)
 
-venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
+    venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
 
-n = st.slider(
-    "Number of recent matches",
-    3,
-    min(15, max(3, len(data))),
-    5
-)
+    n = st.slider(
+        "Number of recent matches",
+        3,
+        min(15, max(3, len(data))),
+        5
+    )
 
-matches = team_matches(data, team)
+    matches = team_matches(data, team)
 
-if season_filter != "All":
-    matches = matches[matches["season"] == season_filter]
+    if season_filter != "All":
+        matches = matches[matches["season"] == season_filter]
 
-if competition_filter != "All":
-    matches = matches[matches["competition"] == competition_filter]
+    if competition_filter != "All":
+        matches = matches[matches["competition"] == competition_filter]
 
-if venue_filter != "All":
-    matches = matches[matches["venue"] == venue_filter]
+    if venue_filter != "All":
+        matches = matches[matches["venue"] == venue_filter]
 
-recent = matches.head(n)
+    recent = matches.head(n)
 
-    c1,c2,c3,c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
+
     c1.metric("Matches", len(recent))
-    c2.metric("Avg shots", f"{recent.team_shots.mean():.1f}" if len(recent) else "—")
-    c3.metric("Avg SOT", f"{recent.team_sot.mean():.1f}" if len(recent) else "—")
-    c4.metric("Avg corners", f"{recent.team_corners.mean():.1f}" if len(recent) else "—")
 
-    st.subheader("Match-by-match record")
-    display_cols = ["date","home_team","away_team","team_goals","opp_goals",
-                    "team_shots","opp_shots","team_sot","opp_sot",
-                    "team_corners","opp_corners","venue"]
-    st.dataframe(recent[display_cols], use_container_width=True, hide_index=True)
+    if len(recent) > 0:
+        c2.metric("Avg Goals", round(recent["goals_for"].mean(), 2))
+        c3.metric("Avg Shots", round(recent["shots_for"].mean(), 2))
+        c4.metric("Avg SOT", round(recent["sot_for"].mean(), 2))
 
-    st.subheader("Distribution")
-    chart_df = recent[["date","team_shots","team_sot","team_corners"]].set_index("date")
-    st.line_chart(chart_df)
+    st.dataframe(recent)
 
 with tab2:
     st.subheader("Test a market")

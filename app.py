@@ -103,9 +103,11 @@ venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
 n = st.slider("Number of recent matches", 3, min(15, max(3, len(data))), 5)
 
     matches = team_matches(data, team)
-    if venue_filter != "All":
-        matches = matches[matches["venue"] == venue_filter]
-    recent = matches.head(n)
+
+if venue_filter != "All":
+    matches = matches[matches["venue"] == venue_filter]
+
+recent = matches.head(n)
 
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("Matches", len(recent))

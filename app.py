@@ -84,8 +84,8 @@ if uploaded:
     data = clean_data(pd.read_csv(uploaded))
     st.sidebar.success(f"Loaded {len(data)} matches")
 else:
-    data = clean_data(demo)
-    st.sidebar.info("Using demo data. Upload your own CSV to replace it.")
+    data = clean_data(pd.read_csv("football_2026_27_v1.csv"))
+    st.sidebar.success(f"Using 2026/27 data — {len(data)} matches")
 
 missing = [c for c in REQUIRED_COLUMNS if c not in data.columns]
 if missing:

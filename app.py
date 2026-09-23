@@ -113,24 +113,26 @@ competitions = ["All"] + sorted(data["competition"].dropna().unique().tolist())
 competition_filter = st.selectbox("Competition", competitions)
 
 venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
-    n = st.slider(
-        "Number of recent matches",
-        3,
-        min(15, max(3, len(data))),
-        5
-    )
 
-    matches = team_matches(data, team)
+n = st.slider(
+    "Number of recent matches",
+    3,
+    min(15, max(3, len(data))),
+    5
+)
 
-    if season_filter != "All":
-        matches = matches[matches["season"] == season_filter]
+matches = team_matches(data, team)
 
-    if competition_filter != "All":
-        matches = matches[matches["competition"] == competition_filter]
+if season_filter != "All":
+    matches = matches[matches["season"] == season_filter]
 
-    if venue_filter != "All":
-        matches = matches[matches["venue"] == venue_filter]
-    recent = matches.head(n)
+if competition_filter != "All":
+    matches = matches[matches["competition"] == competition_filter]
+
+if venue_filter != "All":
+    matches = matches[matches["venue"] == venue_filter]
+
+recent = matches.head(n)
 
     c1,c2,c3,c4 = st.columns(4)
     c1.metric("Matches", len(recent))

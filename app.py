@@ -104,15 +104,15 @@ with tab1:
         if team_search.lower() in t.lower()
     ]
 
-    team = st.selectbox("Team", filtered_teams)
+team = st.selectbox("Team", filtered_teams)
 
-        seasons = ["All"] + sorted(data["season"].dropna().unique().tolist(), reverse=True)
-    season_filter = st.selectbox("Season", seasons)
+seasons = ["All"] + sorted(data["season"].dropna().unique().tolist(), reverse=True)
+season_filter = st.selectbox("Season", seasons)
 
-    competitions = ["All"] + sorted(data["competition"].dropna().unique().tolist())
-    competition_filter = st.selectbox("Competition", competitions)
+competitions = ["All"] + sorted(data["competition"].dropna().unique().tolist())
+competition_filter = st.selectbox("Competition", competitions)
 
-    venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
+venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
     n = st.slider(
         "Number of recent matches",
         3,
@@ -120,7 +120,7 @@ with tab1:
         5
     )
 
-        matches = team_matches(data, team)
+    matches = team_matches(data, team)
 
     if season_filter != "All":
         matches = matches[matches["season"] == season_filter]

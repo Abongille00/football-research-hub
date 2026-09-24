@@ -169,52 +169,148 @@ st.dataframe(recent)
 
 with tab2:
     st.subheader("Test a market")
+
     teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
     team = st.selectbox("Team to test", teams, key="market_team")
-    market = st.selectbox("Market", ["Shots", "Shots on Target", "Corners", "Goals"])
-    direction = st.selectbox("Direction", ["Over", "Under"])
-    line = st.number_input("Line", min_value=0.0, max_value=30.0, value=3.5, step=0.5)
-    odds = st.number_input("Decimal odds", min_value=1.01, max_value=100.0, value=1.30, step=0.01)
 
-    n2 = st.slider("Recent sample", 5, 15, 10)
-    venue2 = st.selectbox("Venue filter", ["All", "Home", "Away"], key="market_venue")
+    seasons = ["All"] + sorted(
+        data["season"].dropna().unique().tolist(),
+        reverse=True
+    )
+    season2 = st.selectbox("Season", seasons, key="market_season")
+
+    competitions = ["All"] + sorted(
+        data["competition"].dropna().unique().tolist()
+    )
+    competition2 = st.selectbox(
+        "Competition",
+        competitions,
+        key="market_competition"
+    )
+
+    venue2 = st.selectbox(
+        "Venue",
+        ["All", "Home", "Away"],
+        key="market_venue"
+    )
+
+    market = st.selectbox(
+        "Market",
+        ["Shots", "Shots on Target", "Corners", "Goals"]
+    )
+
+    direction = st.selectbox(
+        "Direction",
+        ["Over", "Under"]
+    )
+
+    line = st.number_input(
+        "Line",
+        min_value=0.0,
+        max_value=30.0,
+        value=3.5,
+        step=0.5
+    )
+
+    odds = st.number_input(
+        "Decimal odds",
+        min_value=1.01,
+        max_value=100.0,
+        value=1.30,
+        step=0.01
+    )
+
+    n2 = st.select_slider(
+        "Recent sample",
+        options=[5, 10, 15],
+        value=10
+    )
+
     m = team_matches(data, team)
+
+    if season2 != "All":
+        m = m[m["season"] == season2]
+
+    if competition2 != "All":
+        m = m[m["competition"] == competition2]
+
     if venue2 != "All":
         m = m[m["venue"] == venue2]
+
     m = m.head(n2)
 
     col_map = {
-        "Shots":"team_shots",
-        "Shots on Target":"team_sot",
-        "Corners":"team_corners",
-        "Goals":"team_goals"
+        "Shots": "team_shots",
+        "Shots on Target": "team_sot",
+        "Corners": "team_corners",
+        "Goals": "team_goals"
     }
+
     col = col_map[market]
-    rate = hit_rate(m[col], line, direction == "Over")
+
+    rate = hit_rate(
+        m[col],
+        line,
+        direction == "Over"
+    )
+
     breakeven = 1 / odds
 
-    a,b,c,d = st.columns(4)
-    a.metric("Historical hit rate", fmt_pct(rate))
-    b.metric("Break-even probability", f"{breakeven*100:.1f}%")
-    c.metric("Sample size", len(m))
-    if rate is not None:
-        c3 = "Above" if rate > breakeven else "Below"
-    else:
-        c3 = "—"
-    d.metric("Historical vs break-even", c3)
+    a, b, c, d = st.columns(4)
+
+    a.metric(
+        "Historical hit rate",
+        fmt_pct(rate)
+    )
+
+    b.metric(
+        "Break-even probability",
+        f"{breakeven*100:.1f}%"
+    )
+
+    c.metric(
+        "Sample size",
+        len(m)
+    )
 
     if rate is not None:
-        st.progress(min(max(rate,0),1))
-    st.caption("Historical hit rate is descriptive only. It does not establish the probability of the next match.")
+        c4_text = "Above" if rate >= breakeven else "Below"
+    else:
+        c4_text = "—"
+
+    d.metric(
+        "Historical vs break-even",
+        c4_text
+    )
+
+    if rate is not None:
+        st.progress(min(max(rate, 0), 1))
+
+    st.caption(
+        "Historical hit rate is descriptive only. "
+        "It does not establish the probability of the next match."
+    )
 
     if len(m):
-        result = m[["date","home_team","away_team",col,"venue"]].copy()
-        result["hit"] = result[col] > line if direction == "Over" else result[col] < line
-        result["hit"] = result["hit"].map({True:"✅", False:"❌"})
-        st.dataframe(result, use_container_width=True, hide_index=True)
+        result = m[
+            ["date", "home_team", "away_team", "venue", col]
+        ].copy()
 
-    st.warning("Before betting, investigate opponent strength, game state, lineup news, tactical matchup and whether the historical sample is actually comparable.")
+        result["hit"] = (
+            result[col] > line
+            if direction == "Over"
+            else result[col] < line
+        )
 
+        result["hit"] = result["hit"].map(
+            {True: "✓", False: "✗"}
+        )
+
+        st.dataframe(
+            result,
+            use_container_width=True,
+            hide_index=True
+        )
 with tab3:
     st.subheader("CSV format")
     st.write("Your CSV should contain one row per match with these columns:")

@@ -85,7 +85,7 @@ if uploaded:
     st.sidebar.success(f"Loaded {len(data)} matches")
 else:
     data = clean_data(pd.read_csv("football_master_2024_27_v1.csv"))
-    st.sidebar.success(f"Using 2026/27 data — {len(data)} matches")
+    st.sidebar.success(f"Using master dataset — {len(data)} matches")
 
 missing = [c for c in REQUIRED_COLUMNS if c not in data.columns]
 if missing:

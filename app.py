@@ -137,35 +137,35 @@ with tab1:
     if venue_filter != "All":
         matches = matches[matches["venue"] == venue_filter]
 
-recent = matches.head(n)
+    recent = matches.head(n)
 
-# Convert match statistics into selected-team perspective
-recent = recent.copy()
+    # Convert match statistics into selected-team perspective
+    recent = recent.copy()
 
-is_home = recent["home_team"].eq(team)
+    is_home = recent["home_team"].eq(team)
 
-recent["goals_for"] = recent["home_goals"].where(is_home, recent["away_goals"])
-recent["goals_against"] = recent["away_goals"].where(is_home, recent["home_goals"])
+    recent["goals_for"] = recent["home_goals"].where(is_home, recent["away_goals"])
+    recent["goals_against"] = recent["away_goals"].where(is_home, recent["home_goals"])
 
-recent["shots_for"] = recent["home_shots"].where(is_home, recent["away_shots"])
-recent["shots_against"] = recent["away_shots"].where(is_home, recent["home_shots"])
+    recent["shots_for"] = recent["home_shots"].where(is_home, recent["away_shots"])
+    recent["shots_against"] = recent["away_shots"].where(is_home, recent["home_shots"])
 
-recent["sot_for"] = recent["home_sot"].where(is_home, recent["away_sot"])
-recent["sot_against"] = recent["away_sot"].where(is_home, recent["home_sot"])
+    recent["sot_for"] = recent["home_sot"].where(is_home, recent["away_sot"])
+    recent["sot_against"] = recent["away_sot"].where(is_home, recent["home_sot"])
 
-recent["corners_for"] = recent["home_corners"].where(is_home, recent["away_corners"])
-recent["corners_against"] = recent["away_corners"].where(is_home, recent["home_corners"])
+    recent["corners_for"] = recent["home_corners"].where(is_home, recent["away_corners"])
+    recent["corners_against"] = recent["away_corners"].where(is_home, recent["home_corners"])
 
-c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4 = st.columns(4)
 
-c1.metric("Matches", len(recent))
+    c1.metric("Matches", len(recent))
 
-if len(recent) > 0:
-    c2.metric("Avg Goals", round(recent["goals_for"].mean(), 2))
-    c3.metric("Avg Shots", round(recent["shots_for"].mean(), 2))
-    c4.metric("Avg SOT", round(recent["sot_for"].mean(), 2))
+    if len(recent) > 0:
+        c2.metric("Avg Goals", round(recent["goals_for"].mean(), 2))
+        c3.metric("Avg Shots", round(recent["shots_for"].mean(), 2))
+        c4.metric("Avg SOT", round(recent["sot_for"].mean(), 2))
 
-st.dataframe(recent)
+    st.dataframe(recent)
 
 with tab2:
     st.subheader("Test a market")

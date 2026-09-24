@@ -139,7 +139,52 @@ with tab1:
 
     recent = matches.head(n)
 
-    c1, c2, c3, c4 = st.columns(4)
+# Convert match statistics into selected-team perspective
+recent = recent.copy()
+
+is_home = recent["home_team"].eq(team)
+
+recent["goals_for"] = recent["home_goals"].where(
+    is_home,
+    recent["away_goals"]
+)
+
+recent["goals_against"] = recent["away_goals"].where(
+    is_home,
+    recent["home_goals"]
+)
+
+recent["shots_for"] = recent["home_shots"].where(
+    is_home,
+    recent["away_shots"]
+)
+
+recent["shots_against"] = recent["away_shots"].where(
+    is_home,
+    recent["home_shots"]
+)
+
+recent["sot_for"] = recent["home_sot"].where(
+    is_home,
+    recent["away_sot"]
+)
+
+recent["sot_against"] = recent["away_sot"].where(
+    is_home,
+    recent["home_sot"]
+)
+
+recent["corners_for"] = recent["home_corners"].where(
+    is_home,
+    recent["away_corners"]
+)
+
+recent["corners_against"] = recent["home_corners"].where(
+    is_home,
+    recent["away_corners"]
+)
+
+c1, c2, c3, c4 = st.columns(4)
 
     c1.metric("Matches", len(recent))
 

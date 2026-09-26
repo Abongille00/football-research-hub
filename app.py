@@ -92,7 +92,12 @@ if missing:
     st.error("Your CSV is missing these columns: " + ", ".join(missing))
     st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📊 Team Research", "🎯 Market Tester", "📥 Data Format"])
+tab1, tab2, tab3, tab4 = st.tabs([
+    "🔎 Team Research",
+    "🎯 Market Tester",
+    "📊 Bookmaker Monitor",
+    "📥 Data Format"
+])
 
 with tab1:
     teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))

@@ -411,8 +411,8 @@ with tab3:
             key="monitor_venue"
         )
 
-        if st.button("Analyse & Add Market", key="add_market"):
-            m = team_matches(data, monitor_team)
+            if st.button("Analyse & Add Market", key="add_market"):
+                m = team_matches(data, monitor_team)
 
             if monitor_season!= "All":
                 m = m[m["season"] == monitor_season]
@@ -433,52 +433,40 @@ with tab3:
             }
 
             col = col_map[market]
-
-            rate = hit_rate(
-                m[col],
-                line,
-                direction == "Over"
-            )
-
+            rate = hit_rate(m[col], line, direction == "Over")
             breakeven = 1 / odds
 
             if rate is not None:
-                historical_vs_breakeven = (
-                    "Above" if rate >= breakeven else "Below"
-                )
+                historical_vs_breakeven = "Above" if rate >= breakeven else "Below"
+                historical_hit_rate = rate * 100
             else:
                 historical_vs_breakeven = "-"
+                historical_hit_rate = None
 
-            historical_hit_rate = (
-    rate * 100
-    if rate is not None
-    else None
-)
+            break_even_rate = breakeven * 100
 
-break_even_rate = breakeven * 100
+            if historical_hit_rate is not None:
+                edge = historical_hit_rate - break_even_rate
+                edge_display = f"{edge:+.1f} pp"
+            else:
+                edge_display = "-"
 
-if historical_hit_rate is not None:
-    edge = historical_hit_rate - break_even_rate
-    edge_display = f"{edge:+.1f} pp"
-else:
-    edge_display = "-"
-
-entry = {
-    "Bookmaker": bookmaker,
-    "Match": match_name,
-    "Team": monitor_team,
-    "Market": market,
-    "Direction": direction,
-    "Line": line,
-    "Odds": odds,
-    "Historical Hit Rate": (
-        f"{historical_hit_rate:.1f}%"
-        if historical_hit_rate is not None else "-"
-    ),
-    "Break-even": f"{break_even_rate:.1f}%",
-    "Edge vs Break-even": edge_display,
-    "Historical vs Break-even": historical_vs_breakeven
-}
+            entry = {
+                "Bookmaker": bookmaker,
+                "Match": match_name,
+                "Team": monitor_team,
+                "Market": market,
+                "Direction": direction,
+                "Line": line,
+                "Odds": odds,
+                "Historical Hit Rate": (
+                    f"{historical_hit_rate:.1f}%"
+                    if historical_hit_rate is not None else "-"
+                ),
+                "Break-even": f"{break_even_rate:.1f}%",
+                "Edge vs Break-even": edge_display,
+                "Historical vs Break-even": historical_vs_breakeven
+            }
 
             st.session_state.market_watchlist.append(entry)
 
@@ -487,15 +475,8 @@ entry = {
     st.subheader("Tracked Markets")
 
     if st.session_state.market_watchlist:
-        watchlist_df = pd.DataFrame(
-            st.session_state.market_watchlist
-        )
-
-        st.dataframe(
-            watchlist_df,
-            use_container_width=True,
-            hide_index=True
-        )
+        watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
+        st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
 
         if st.button("Clear Monitor", key="clear_monitor"):
             st.session_state.market_watchlist = []

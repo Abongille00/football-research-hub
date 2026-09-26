@@ -387,10 +387,42 @@ with tab3:
             index=1,
             key="monitor_sample"
         )
+        
+        monitor_season = st.selectbox(
+        "Season",
+        ["All"] + sorted(
+            data["season"].dropna().unique().tolist(),
+            reverse=True
+        ),
+        key="monitor_season"
+    )
+
+    monitor_competition = st.selectbox(
+        "Competition",
+        ["All"] + sorted(
+            data["competition"].dropna().unique().tolist()
+        ),
+        key="monitor_competition"
+    )
+
+    monitor_venue = st.selectbox(
+        "Venue",
+        ["All", "Home", "Away"],
+        key="monitor_venue"
+    )
 
     if st.button("Analyse & Add Market", key="add_market"):
 
         m = team_matches(data, monitor_team)
+
+if monitor_season != "All":
+    m = m[m["season"] == monitor_season]
+
+if monitor_competition != "All":
+    m = m[m["competition"] == monitor_competition]
+
+if monitor_venue != "All":
+    m = m[m["venue"] == monitor_venue]
 
         m = m.head(sample)
 

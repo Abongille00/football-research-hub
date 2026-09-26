@@ -317,6 +317,145 @@ with tab2:
             hide_index=True
         )
 with tab3:
+    st.subheader("Bookmaker Market Monitor")
+
+    if "market_watchlist" not in st.session_state:
+        st.session_state.market_watchlist = []
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        bookmaker = st.selectbox(
+            "Bookmaker",
+            ["SportyBet", "SunBet", "Virgin Bet"],
+            key="monitor_bookmaker"
+        )
+
+        match_name = st.text_input(
+            "Match",
+            "",
+            placeholder="e.g. Chelsea vs Brentford",
+            key="monitor_match"
+        )
+
+        teams = sorted(
+            set(data.home_team.dropna()) |
+            set(data.away_team.dropna())
+        )
+
+        monitor_team = st.selectbox(
+            "Team",
+            teams,
+            key="monitor_team"
+        )
+
+        market = st.selectbox(
+            "Market",
+            ["Shots", "Shots on Target", "Corners", "Goals"],
+            key="monitor_market"
+        )
+
+    with col2:
+        direction = st.selectbox(
+            "Direction",
+            ["Over", "Under"],
+            key="monitor_direction"
+        )
+
+        line = st.number_input(
+            "Line",
+            min_value=0.0,
+            max_value=30.0,
+            value=3.5,
+            step=0.5,
+            key="monitor_line"
+        )
+
+        odds = st.number_input(
+            "Decimal odds",
+            min_value=1.01,
+            max_value=100.0,
+            value=1.30,
+            step=0.01,
+            key="monitor_odds"
+        )
+
+        sample = st.selectbox(
+            "Historical sample",
+            [5, 10, 15],
+            index=1,
+            key="monitor_sample"
+        )
+
+    if st.button("Analyse & Add Market", key="add_market"):
+
+        m = team_matches(data, monitor_team)
+
+        m = m.head(sample)
+
+        col_map = {
+            "Shots": "team_shots",
+            "Shots on Target": "team_sot",
+            "Corners": "team_corners",
+            "Goals": "team_goals"
+        }
+
+        col = col_map[market]
+
+        rate = hit_rate(
+            m[col],
+            line,
+            direction == "Over"
+        )
+
+        breakeven = 1 / odds
+
+        if rate is not None:
+            historical_vs_breakeven = (
+                "Above" if rate >= breakeven else "Below"
+            )
+        else:
+            historical_vs_breakeven = "-"
+
+        entry = {
+            "Bookmaker": bookmaker,
+            "Match": match_name,
+            "Team": monitor_team,
+            "Market": market,
+            "Direction": direction,
+            "Line": line,
+            "Odds": odds,
+            "Historical Hit Rate": (
+                f"{rate * 100:.1f}%"
+                if rate is not None else "-"
+            ),
+            "Break-even": f"{breakeven * 100:.1f}%",
+            "Historical vs Break-even": historical_vs_breakeven
+        }
+
+        st.session_state.market_watchlist.append(entry)
+
+    st.divider()
+
+    st.subheader("Tracked Markets")
+
+    if st.session_state.market_watchlist:
+        watchlist_df = pd.DataFrame(
+            st.session_state.market_watchlist
+        )
+
+        st.dataframe(
+            watchlist_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        if st.button("Clear Monitor", key="clear_monitor"):
+            st.session_state.market_watchlist = []
+            st.rerun()
+    else:
+        st.info("No markets added yet.")
+with tab4:
     st.subheader("CSV format")
     st.write("Your CSV should contain one row per match with these columns:")
     st.code(",".join(REQUIRED_COLUMNS))

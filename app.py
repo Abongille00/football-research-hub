@@ -424,7 +424,7 @@ if monitor_competition != "All":
 if monitor_venue != "All":
     m = m[m["venue"] == monitor_venue]
 
-        m = m.head(sample)
+m = m.head(sample)
 
         col_map = {
             "Shots": "team_shots",

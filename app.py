@@ -397,58 +397,57 @@ with tab3:
         key="monitor_season"
         )
 
-        monitor_competition = st.selectbox(
-        "Competition",
-        ["All"] + sorted(
-            data["competition"].dropna().unique().tolist()
-        ),
-        key="monitor_competition"
+                monitor_competition = st.selectbox(
+            "Competition",
+            ["All"] + sorted(
+                data["competition"].dropna().unique().tolist()
+            ),
+            key="monitor_competition"
         )
 
         monitor_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="monitor_venue"
+            "Venue",
+            ["All", "Home", "Away"],
+            key="monitor_venue"
         )
 
         if st.button("Analyse & Add Market", key="add_market"):
+            m = team_matches(data, monitor_team)
 
-        m = team_matches(data, monitor_team)
+            if monitor_season!= "All":
+                m = m[m["season"] == monitor_season]
 
-        if monitor_season != "All":
-    m = m[m["season"] == monitor_season]
+            if monitor_competition!= "All":
+                m = m[m["competition"] == monitor_competition]
 
-        if monitor_competition != "All":
-    m = m[m["competition"] == monitor_competition]
+            if monitor_venue!= "All":
+                m = m[m["venue"] == monitor_venue]
 
-        if monitor_venue != "All":
-    m = m[m["venue"] == monitor_venue]
+            m = m.head(sample)
 
-        m = m.head(sample)
+            col_map = {
+                "Shots": "team_shots",
+                "Shots on Target": "team_sot",
+                "Corners": "team_corners",
+                "Goals": "team_goals"
+            }
 
-        col_map = {
-            "Shots": "team_shots",
-            "Shots on Target": "team_sot",
-            "Corners": "team_corners",
-            "Goals": "team_goals"
-        }
+            col = col_map[market]
 
-        col = col_map[market]
-
-        rate = hit_rate(
-            m[col],
-            line,
-            direction == "Over"
-        )
-
-        breakeven = 1 / odds
-
-        if rate is not None:
-            historical_vs_breakeven = (
-                "Above" if rate >= breakeven else "Below"
+            rate = hit_rate(
+                m[col],
+                line,
+                direction == "Over"
             )
-        else:
-            historical_vs_breakeven = "-"
+
+            breakeven = 1 / odds
+
+            if rate is not None:
+                historical_vs_breakeven = (
+                    "Above" if rate >= breakeven else "Below"
+                )
+            else:
+                historical_vs_breakeven = "-"
 
         entry = {
             "Bookmaker": bookmaker,

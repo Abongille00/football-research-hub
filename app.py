@@ -313,6 +313,7 @@ with tab2:
 
         st.dataframe(
             result,
+            
             use_container_width=True,
             hide_index=True
         )
@@ -446,6 +447,7 @@ with tab3:
 
         st.dataframe(
             watchlist_df,
+            
             use_container_width=True,
             hide_index=True
         )
@@ -455,6 +457,7 @@ with tab3:
             st.rerun()
     else:
         st.info("No markets added yet.")
+
 with tab4:
     st.subheader("CSV format")
     st.write("Your CSV should contain one row per match with these columns:")

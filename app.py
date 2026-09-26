@@ -449,21 +449,36 @@ with tab3:
             else:
                 historical_vs_breakeven = "-"
 
-            entry = {
-                "Bookmaker": bookmaker,
-                "Match": match_name,
-                "Team": monitor_team,
-                "Market": market,
-                "Direction": direction,
-                "Line": line,
-                "Odds": odds,
-                "Historical Hit Rate": (
-                    f"{rate * 100:.1f}%"
-                    if rate is not None else "-"
-                ),
-                "Break-even": f"{breakeven * 100:.1f}%",
-                "Historical vs Break-even": historical_vs_breakeven
-            }
+            historical_hit_rate = (
+    rate * 100
+    if rate is not None
+    else None
+)
+
+break_even_rate = breakeven * 100
+
+if historical_hit_rate is not None:
+    edge = historical_hit_rate - break_even_rate
+    edge_display = f"{edge:+.1f} pp"
+else:
+    edge_display = "-"
+
+entry = {
+    "Bookmaker": bookmaker,
+    "Match": match_name,
+    "Team": monitor_team,
+    "Market": market,
+    "Direction": direction,
+    "Line": line,
+    "Odds": odds,
+    "Historical Hit Rate": (
+        f"{historical_hit_rate:.1f}%"
+        if historical_hit_rate is not None else "-"
+    ),
+    "Break-even": f"{break_even_rate:.1f}%",
+    "Edge vs Break-even": edge_display,
+    "Historical vs Break-even": historical_vs_breakeven
+}
 
             st.session_state.market_watchlist.append(entry)
 

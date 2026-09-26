@@ -387,17 +387,17 @@ with tab3:
             index=1,
             key="monitor_sample"
         )
-        
+
         monitor_season = st.selectbox(
-        "Season",
-        ["All"] + sorted(
-            data["season"].dropna().unique().tolist(),
-            reverse=True
-        ),
-        key="monitor_season"
+            "Season",
+            ["All"] + sorted(
+                data["season"].dropna().unique().tolist(),
+                reverse=True
+            ),
+            key="monitor_season"
         )
 
-                monitor_competition = st.selectbox(
+        monitor_competition = st.selectbox(
             "Competition",
             ["All"] + sorted(
                 data["competition"].dropna().unique().tolist()
@@ -449,23 +449,23 @@ with tab3:
             else:
                 historical_vs_breakeven = "-"
 
-        entry = {
-            "Bookmaker": bookmaker,
-            "Match": match_name,
-            "Team": monitor_team,
-            "Market": market,
-            "Direction": direction,
-            "Line": line,
-            "Odds": odds,
-            "Historical Hit Rate": (
-                f"{rate * 100:.1f}%"
-                if rate is not None else "-"
-            ),
-            "Break-even": f"{breakeven * 100:.1f}%",
-            "Historical vs Break-even": historical_vs_breakeven
-        }
+            entry = {
+                "Bookmaker": bookmaker,
+                "Match": match_name,
+                "Team": monitor_team,
+                "Market": market,
+                "Direction": direction,
+                "Line": line,
+                "Odds": odds,
+                "Historical Hit Rate": (
+                    f"{rate * 100:.1f}%"
+                    if rate is not None else "-"
+                ),
+                "Break-even": f"{breakeven * 100:.1f}%",
+                "Historical vs Break-even": historical_vs_breakeven
+            }
 
-        st.session_state.market_watchlist.append(entry)
+            st.session_state.market_watchlist.append(entry)
 
     st.divider()
 
@@ -478,7 +478,6 @@ with tab3:
 
         st.dataframe(
             watchlist_df,
-            
             use_container_width=True,
             hide_index=True
         )

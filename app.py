@@ -411,8 +411,8 @@ with tab3:
             key="monitor_venue"
         )
 
-            if st.button("Analyse & Add Market", key="add_market"):
-                m = team_matches(data, monitor_team)
+        if st.button("Analyse & Add Market", key="add_market"):
+            m = team_matches(data, monitor_team)
 
             if monitor_season!= "All":
                 m = m[m["season"] == monitor_season]

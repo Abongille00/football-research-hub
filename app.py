@@ -334,7 +334,9 @@ with tab3:
 
     with col1:
         bookmaker = st.selectbox("Bookmaker", ["SportyBet", "SunBet", "Virgin Bet"], key="monitor_bookmaker")
-        match_name = st.text_input("Match", "", placeholder="e.g. Chelsea vs Brentford", key="monitor_match")
+        match_name = st.text_input("Match", "", placeholder="e.g. Chelsea vs Barcelona", key="monitor_match")
+        match_date = st.date_input("Match date", key="monitor_match_date")
+        capture_time = st.time_input("Capture time", key="monitor_capture_time")
         teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
         monitor_team = st.selectbox("Team", teams, key="monitor_team")
         market = st.selectbox("Market", ["Shots", "Shots on Target", "Corners", "Goals"], key="monitor_market")
@@ -369,10 +371,18 @@ with tab3:
             edge_display = f"{(historical_hit_rate - break_even_rate):+.1f} pp" if historical_hit_rate is not None else "-"
 
             entry = {
-                "Bookmaker": bookmaker, "Match": match_name, "Team": monitor_team,
-                "Market": market, "Direction": direction, "Line": line, "Odds": odds,
+                "Bookmaker": bookmaker,
+                "Match": match_name,
+                "Match Date": str(match_date),
+                "Capture Time": str(capture_time),
+                "Team": monitor_team,
+                "Market": market,
+                "Direction": direction,
+                "Line": line,
+                "Odds": odds,
                 "Historical Hit Rate": f"{historical_hit_rate:.1f}%" if historical_hit_rate is not None else "-",
-                "Break-even": f"{break_even_rate:.1f}%", "Edge vs Break-even": edge_display,
+                "Break-even": f"{break_even_rate:.1f}%",
+                "Edge vs Break-even": edge_display,
                 "Historical vs Break-even": historical_vs_breakeven
             }
             st.session_state.market_watchlist.append(entry)
@@ -382,28 +392,14 @@ with tab3:
     st.subheader("Tracked Markets")
 
     if st.session_state.market_watchlist:
-        watchlist_df = pd.DataFrame(
-            st.session_state.market_watchlist
-        )
-
-        st.dataframe(
-            watchlist_df,
-            use_container_width=True,
-            hide_index=True
-        )
-
+        watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
+        st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
         csv_watchlist = watchlist_df.to_csv(index=False).encode("utf-8")
-
-        st.download_button(
-            "Download Watchlist CSV",
-            csv_watchlist,
-            "market_watchlist.csv",
-            "text/csv",
-            key="download_watchlist"
-        )
-
+        st.download_button("Download Watchlist CSV", csv_watchlist, "market_watchlist.csv", "text/csv", key="download_watchlist")
         if st.button("Clear Monitor", key="clear_monitor"):
             st.session_state.market_watchlist = []
+            if os.path.exists(WATCHLIST_FILE):
+                os.remove(WATCHLIST_FILE)
             st.rerun()
     else:
         st.info("No markets added yet.")

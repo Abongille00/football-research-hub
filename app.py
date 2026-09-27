@@ -99,95 +99,567 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "📊 Bookmaker Monitor",
     "📥 Data Format"
 ])
+# ============================================================
+# PHASE 2 — RESEARCH ENGINE
+# STEPS 8–12
+# ============================================================
 
-with tab1:
-    teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
+MARKET_COLUMN_MAP = {
+    "Shots": "team_shots",
+    "Shots on Target": "team_sot",
+    "Corners": "team_corners",
+    "Goals": "team_goals"
+}
 
-    team_search = st.text_input("Search team", "")
 
-    filtered_teams = [
-        t for t in teams
-        if team_search.lower() in t.lower()
+def analyse_market(df, market, direction, line):
+    """
+    Reusable market-analysis engine.
+
+    Returns:
+        hit_rate
+        hits
+        misses
+        sample_size
+    """
+
+    if df is None or df.empty:
+        return {
+            "hit_rate": None,
+            "hits": 0,
+            "misses": 0,
+            "sample_size": 0
+        }
+
+    column = MARKET_COLUMN_MAP[market]
+
+    if column not in df.columns:
+        return {
+            "hit_rate": None,
+            "hits": 0,
+            "misses": 0,
+            "sample_size": 0
+        }
+
+    values = pd.to_numeric(
+        df[column],
+        errors="coerce"
+    ).dropna()
+
+    if values.empty:
+        return {
+            "hit_rate": None,
+            "hits": 0,
+            "misses": 0,
+            "sample_size": 0
+        }
+
+    if direction == "Over":
+        hits = (values > line).sum()
+    else:
+        hits = (values < line).sum()
+
+    misses = len(values) - hits
+
+    return {
+        "hit_rate": hits / len(values),
+        "hits": int(hits),
+        "misses": int(misses),
+        "sample_size": int(len(values))
+    }
+
+
+def market_history(df, market, direction, line):
+    """
+    Creates a transparent match-by-match market history table.
+    """
+
+    if df is None or df.empty:
+        return pd.DataFrame()
+
+    column = MARKET_COLUMN_MAP[market]
+
+    if column not in df.columns:
+        return pd.DataFrame()
+
+    result_columns = [
+        "date",
+        "home_team",
+        "away_team",
+        "venue",
+        column
     ]
 
-    team = st.selectbox("Team", filtered_teams)
+    available_columns = [
+        c for c in result_columns
+        if c in df.columns
+    ]
 
-    seasons = ["All"] + sorted(
+    result = df[available_columns].copy()
+
+    if column in result.columns:
+        result[column] = pd.to_numeric(
+            result[column],
+            errors="coerce"
+        )
+
+        if direction == "Over":
+            result["Hit"] = result[column] > line
+        else:
+            result["Hit"] = result[column] < line
+
+        result["Hit"] = result["Hit"].map(
+            {
+                True: "✓",
+                False: "✗"
+            }
+        )
+
+    return result
+
+
+def sample_quality(sample_size):
+    """
+    Describes the size of the historical sample.
+    """
+
+    if sample_size == 0:
+        return (
+            "No data",
+            "No matches are available for these filters."
+        )
+
+    if sample_size < 5:
+        return (
+            "Very small sample",
+            "Use caution: fewer than 5 matches are available."
+        )
+
+    if sample_size < 10:
+        return (
+            "Small sample",
+            "A limited historical sample is available."
+        )
+
+    if sample_size < 15:
+        return (
+            "Reasonable sample",
+            "A useful historical sample is available."
+        )
+
+    return (
+        "Strong sample",
+        "15 or more matches are available."
+    )
+
+
+def filtered_team_matches(
+    data,
+    team,
+    season="All",
+    competition="All",
+    venue="All",
+    sample=15
+):
+    """
+    One consistent filtering engine for Team Research,
+    Market Tester and future Match Research.
+    """
+
+    m = team_matches(data, team).copy()
+
+    if season != "All":
+        m = m[m["season"] == season]
+
+    if competition != "All":
+        m = m[m["competition"] == competition]
+
+    if venue != "All":
+        m = m[m["venue"] == venue]
+
+    return m.head(sample)
+
+
+def team_summary(df):
+    """
+    Creates basic descriptive statistics for a team sample.
+    """
+
+    metrics = {
+        "Matches": len(df)
+    }
+
+    for label, column in [
+        ("Shots", "team_shots"),
+        ("Shots on Target", "team_sot"),
+        ("Corners", "team_corners"),
+        ("Goals", "team_goals")
+    ]:
+        if column in df.columns:
+            values = pd.to_numeric(
+                df[column],
+                errors="coerce"
+            ).dropna()
+
+            if len(values):
+                metrics[f"{label} Avg"] = values.mean()
+            else:
+                metrics[f"{label} Avg"] = None
+
+    return metrics
+
+with tab1:
+    st.subheader("Team Research Dashboard")
+
+    # ---------------------------------------------------------
+    # TEAM
+    # ---------------------------------------------------------
+
+    teams = sorted(
+        set(data.home_team.dropna()) |
+        set(data.away_team.dropna())
+    )
+
+    dashboard_team = st.selectbox(
+        "Team",
+        teams,
+        key="dashboard_team"
+    )
+
+    # ---------------------------------------------------------
+    # FILTERS
+    # ---------------------------------------------------------
+
+    dashboard_seasons = ["All"] + sorted(
         data["season"].dropna().unique().tolist(),
         reverse=True
     )
-    season_filter = st.selectbox("Season", seasons)
 
-    competitions = ["All"] + sorted(
+    dashboard_season = st.selectbox(
+        "Season",
+        dashboard_seasons,
+        key="dashboard_season"
+    )
+
+    dashboard_competitions = ["All"] + sorted(
         data["competition"].dropna().unique().tolist()
     )
-    competition_filter = st.selectbox("Competition", competitions)
 
-    venue_filter = st.selectbox("Venue", ["All", "Home", "Away"])
-
-    n = st.slider(
-        "Number of recent matches",
-        3,
-        min(15, max(3, len(data))),
-        5
+    dashboard_competition = st.selectbox(
+        "Competition",
+        dashboard_competitions,
+        key="dashboard_competition"
     )
 
-    matches = team_matches(data, team)
+    dashboard_venue = st.selectbox(
+        "Venue",
+        ["All", "Home", "Away"],
+        key="dashboard_venue"
+    )
 
-    if season_filter != "All":
-        matches = matches[matches["season"] == season_filter]
+    dashboard_sample = st.select_slider(
+        "Recent sample",
+        options=[5, 10, 15],
+        value=10,
+        key="dashboard_sample"
+    )
 
-    if competition_filter != "All":
-        matches = matches[matches["competition"] == competition_filter]
+    # ---------------------------------------------------------
+    # FILTERED MATCHES
+    # ---------------------------------------------------------
 
-    if venue_filter != "All":
-        matches = matches[matches["venue"] == venue_filter]
+    dashboard_df = filtered_team_matches(
+        data=data,
+        team=dashboard_team,
+        season=dashboard_season,
+        competition=dashboard_competition,
+        venue=dashboard_venue,
+        sample=dashboard_sample
+    )
 
-    recent = matches.head(n)
+    dashboard_metrics = team_summary(
+        dashboard_df
+    )
 
-    # Convert match statistics into selected-team perspective
-    recent = recent.copy()
+    # ---------------------------------------------------------
+    # SAMPLE QUALITY
+    # ---------------------------------------------------------
 
-    is_home = recent["home_team"].eq(team)
+    dashboard_size = len(dashboard_df)
 
-    recent["goals_for"] = recent["home_goals"].where(is_home, recent["away_goals"])
-    recent["goals_against"] = recent["away_goals"].where(is_home, recent["home_goals"])
+    quality_label, quality_message = sample_quality(
+        dashboard_size
+    )
 
-    recent["shots_for"] = recent["home_shots"].where(is_home, recent["away_shots"])
-    recent["shots_against"] = recent["away_shots"].where(is_home, recent["home_shots"])
+    if dashboard_size < 5:
+        st.warning(
+            f"⚠️ {quality_label}: {quality_message}"
+        )
+    elif dashboard_size < 10:
+        st.info(
+            f"ℹ️ {quality_label}: {quality_message}"
+        )
+    else:
+        st.success(
+            f"✓ {quality_label}: {quality_message}"
+        )
 
-    recent["sot_for"] = recent["home_sot"].where(is_home, recent["away_sot"])
-    recent["sot_against"] = recent["away_sot"].where(is_home, recent["home_sot"])
+    # ---------------------------------------------------------
+    # SUMMARY METRICS
+    # ---------------------------------------------------------
 
-    recent["corners_for"] = recent["home_corners"].where(is_home, recent["away_corners"])
-    recent["corners_against"] = recent["away_corners"].where(is_home, recent["home_corners"])
+    d1, d2, d3, d4, d5 = st.columns(5)
 
-    c1, c2, c3, c4 = st.columns(4)
+    d1.metric(
+        "Matches",
+        dashboard_metrics.get(
+            "Matches",
+            0
+        )
+    )
 
-    c1.metric("Matches", len(recent))
+    d2.metric(
+        "Avg Shots",
+        (
+            f"{dashboard_metrics['Shots Avg']:.2f}"
+            if dashboard_metrics.get("Shots Avg") is not None
+            else "—"
+        )
+    )
 
-    if len(recent) > 0:
-        c2.metric("Avg Goals", round(recent["goals_for"].mean(), 2))
-        c3.metric("Avg Shots", round(recent["shots_for"].mean(), 2))
-        c4.metric("Avg SOT", round(recent["sot_for"].mean(), 2))
+    d3.metric(
+        "Avg SOT",
+        (
+            f"{dashboard_metrics['Shots on Target Avg']:.2f}"
+            if dashboard_metrics.get("Shots on Target Avg") is not None
+            else "—"
+        )
+    )
 
-    st.dataframe(recent)
+    d4.metric(
+        "Avg Corners",
+        (
+            f"{dashboard_metrics['Corners Avg']:.2f}"
+            if dashboard_metrics.get("Corners Avg") is not None
+            else "—"
+        )
+    )
+
+    d5.metric(
+        "Avg Goals",
+        (
+            f"{dashboard_metrics['Goals Avg']:.2f}"
+            if dashboard_metrics.get("Goals Avg") is not None
+            else "—"
+        )
+    )
+
+    # ---------------------------------------------------------
+    # MARKET HIT-RATE OVERVIEW
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Market Hit-Rate Overview")
+
+    overview_rows = []
+
+    for market_name in [
+        "Shots",
+        "Shots on Target",
+        "Corners",
+        "Goals"
+    ]:
+
+        for direction_name in [
+            "Over",
+            "Under"
+        ]:
+
+            for test_line in [
+                0.5,
+                1.5,
+                2.5,
+                3.5,
+                4.5
+            ]:
+
+                result = analyse_market(
+                    dashboard_df,
+                    market_name,
+                    direction_name,
+                    test_line
+                )
+
+                if result["sample_size"] > 0:
+                    overview_rows.append(
+                        {
+                            "Market": market_name,
+                            "Direction": direction_name,
+                            "Line": test_line,
+                            "Hits": result["hits"],
+                            "Sample": result["sample_size"],
+                            "Hit Rate": (
+                                f"{result['hit_rate'] * 100:.1f}%"
+                            )
+                        }
+                    )
+
+    overview_df = pd.DataFrame(
+        overview_rows
+    )
+
+    if not overview_df.empty:
+        st.dataframe(
+            overview_df,
+            use_container_width=True,
+            hide_index=True
+        )
+    else:
+        st.info(
+            "No market data is available for the selected filters."
+        )
+
+    # ---------------------------------------------------------
+    # HOME / AWAY COMPARISON
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Home / Away Comparison")
+
+    split_rows = []
+
+    for venue_label in [
+        "Home",
+        "Away"
+    ]:
+
+        split_df = filtered_team_matches(
+            data=data,
+            team=dashboard_team,
+            season=dashboard_season,
+            competition=dashboard_competition,
+            venue=venue_label,
+            sample=dashboard_sample
+        )
+
+        split_summary = team_summary(
+            split_df
+        )
+
+        split_rows.append(
+            {
+                "Venue": venue_label,
+                "Matches": len(split_df),
+                "Avg Shots": (
+                    f"{split_summary.get('Shots Avg', 0):.2f}"
+                    if split_summary.get("Shots Avg") is not None
+                    else "—"
+                ),
+                "Avg SOT": (
+                    f"{split_summary.get('Shots on Target Avg', 0):.2f}"
+                    if split_summary.get("Shots on Target Avg") is not None
+                    else "—"
+                ),
+                "Avg Corners": (
+                    f"{split_summary.get('Corners Avg', 0):.2f}"
+                    if split_summary.get("Corners Avg") is not None
+                    else "—"
+                ),
+                "Avg Goals": (
+                    f"{split_summary.get('Goals Avg', 0):.2f}"
+                    if split_summary.get("Goals Avg") is not None
+                    else "—"
+                )
+            }
+        )
+
+    split_df_display = pd.DataFrame(
+        split_rows
+    )
+
+    st.dataframe(
+        split_df_display,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # RECENT MATCH HISTORY
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Recent Match History")
+
+    if not dashboard_df.empty:
+
+        display_columns = [
+            "date",
+            "home_team",
+            "away_team",
+            "venue",
+            "team_shots",
+            "team_sot",
+            "team_corners",
+            "team_goals"
+        ]
+
+        available_columns = [
+            c for c in display_columns
+            if c in dashboard_df.columns
+        ]
+
+        recent_display = dashboard_df[
+            available_columns
+        ].copy()
+
+        st.dataframe(
+            recent_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info(
+            "No matches are available for the selected filters."
+        )
 
 with tab2:
     st.subheader("Test a market")
 
-    teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
-    team = st.selectbox("Team to test", teams, key="market_team")
+    # ---------------------------------------------------------
+    # TEAM
+    # ---------------------------------------------------------
+
+    teams = sorted(
+        set(data.home_team.dropna()) |
+        set(data.away_team.dropna())
+    )
+
+    team = st.selectbox(
+        "Team to test",
+        teams,
+        key="market_team"
+    )
+
+    # ---------------------------------------------------------
+    # FILTERS
+    # ---------------------------------------------------------
 
     seasons = ["All"] + sorted(
         data["season"].dropna().unique().tolist(),
         reverse=True
     )
-    season2 = st.selectbox("Season", seasons, key="market_season")
+
+    season2 = st.selectbox(
+        "Season",
+        seasons,
+        key="market_season"
+    )
 
     competitions = ["All"] + sorted(
         data["competition"].dropna().unique().tolist()
     )
+
     competition2 = st.selectbox(
         "Competition",
         competitions,
@@ -200,14 +672,25 @@ with tab2:
         key="market_venue"
     )
 
+    # ---------------------------------------------------------
+    # MARKET
+    # ---------------------------------------------------------
+
     market = st.selectbox(
         "Market",
-        ["Shots", "Shots on Target", "Corners", "Goals"]
+        [
+            "Shots",
+            "Shots on Target",
+            "Corners",
+            "Goals"
+        ],
+        key="market_type"
     )
 
     direction = st.selectbox(
         "Direction",
-        ["Over", "Under"]
+        ["Over", "Under"],
+        key="market_direction"
     )
 
     line = st.number_input(
@@ -215,7 +698,8 @@ with tab2:
         min_value=0.0,
         max_value=30.0,
         value=3.5,
-        step=0.5
+        step=0.5,
+        key="market_line"
     )
 
     odds = st.number_input(
@@ -223,44 +707,72 @@ with tab2:
         min_value=1.01,
         max_value=100.0,
         value=1.30,
-        step=0.01
+        step=0.01,
+        key="market_odds"
     )
 
     n2 = st.select_slider(
         "Recent sample",
         options=[5, 10, 15],
-        value=10
+        value=10,
+        key="market_sample"
     )
 
-    m = team_matches(data, team)
+    # ---------------------------------------------------------
+    # FILTER DATA
+    # ---------------------------------------------------------
 
-    if season2 != "All":
-        m = m[m["season"] == season2]
-
-    if competition2 != "All":
-        m = m[m["competition"] == competition2]
-
-    if venue2 != "All":
-        m = m[m["venue"] == venue2]
-
-    m = m.head(n2)
-
-    col_map = {
-        "Shots": "team_shots",
-        "Shots on Target": "team_sot",
-        "Corners": "team_corners",
-        "Goals": "team_goals"
-    }
-
-    col = col_map[market]
-
-    rate = hit_rate(
-        m[col],
-        line,
-        direction == "Over"
+    m = filtered_team_matches(
+        data=data,
+        team=team,
+        season=season2,
+        competition=competition2,
+        venue=venue2,
+        sample=n2
     )
+
+    # ---------------------------------------------------------
+    # MARKET ANALYSIS — STEP 8
+    # ---------------------------------------------------------
+
+    analysis = analyse_market(
+        m,
+        market,
+        direction,
+        line
+    )
+
+    rate = analysis["hit_rate"]
+    hits = analysis["hits"]
+    misses = analysis["misses"]
+    sample_size = analysis["sample_size"]
 
     breakeven = 1 / odds
+
+    # ---------------------------------------------------------
+    # STEP 11 — SAMPLE QUALITY
+    # ---------------------------------------------------------
+
+    quality_label, quality_message = sample_quality(
+        sample_size
+    )
+
+    if sample_size < 5:
+        st.warning(
+            f"⚠️ {quality_label}: {quality_message}"
+        )
+    elif sample_size < 10:
+        st.info(
+            f"ℹ️ {quality_label}: {quality_message}"
+        )
+    else:
+        st.success(
+            f"✓ {quality_label}: {quality_message}"
+        )
+
+    # ---------------------------------------------------------
+    # MAIN METRICS
+    # ---------------------------------------------------------
 
     a, b, c, d = st.columns(4)
 
@@ -271,53 +783,174 @@ with tab2:
 
     b.metric(
         "Break-even probability",
-        f"{breakeven*100:.1f}%"
+        f"{breakeven * 100:.1f}%"
     )
 
     c.metric(
         "Sample size",
-        len(m)
+        sample_size
     )
 
     if rate is not None:
-        c4_text = "Above" if rate >= breakeven else "Below"
+        comparison = (
+            "Above"
+            if rate >= breakeven
+            else "Below"
+        )
     else:
-        c4_text = "—"
+        comparison = "—"
 
     d.metric(
         "Historical vs break-even",
-        c4_text
+        comparison
     )
 
     if rate is not None:
-        st.progress(min(max(rate, 0), 1))
+        st.progress(
+            min(max(rate, 0), 1)
+        )
+
+        edge = (
+            rate * 100
+        ) - (
+            breakeven * 100
+        )
+
+        st.metric(
+            "Historical difference vs break-even",
+            f"{edge:+.1f} percentage points"
+        )
 
     st.caption(
         "Historical hit rate is descriptive only. "
         "It does not establish the probability of the next match."
     )
 
-    if len(m):
-        result = m[
-            ["date", "home_team", "away_team", "venue", col]
-        ].copy()
+    # ---------------------------------------------------------
+    # STEP 9 — OVERALL / HOME / AWAY
+    # ---------------------------------------------------------
 
-        result["hit"] = (
-            result[col] > line
-            if direction == "Over"
-            else result[col] < line
+    st.divider()
+    st.subheader("Overall / Home / Away Comparison")
+
+    comparison_data = []
+
+    for venue_label in ["All", "Home", "Away"]:
+
+        venue_df = filtered_team_matches(
+            data=data,
+            team=team,
+            season=season2,
+            competition=competition2,
+            venue=venue_label,
+            sample=n2
         )
 
-        result["hit"] = result["hit"].map(
-            {True: "✓", False: "✗"}
+        venue_analysis = analyse_market(
+            venue_df,
+            market,
+            direction,
+            line
         )
+
+        venue_summary = team_summary(
+            venue_df
+        )
+
+        comparison_data.append(
+            {
+                "Venue": venue_label,
+                "Matches": venue_analysis["sample_size"],
+                "Hit Rate": (
+                    f"{venue_analysis['hit_rate'] * 100:.1f}%"
+                    if venue_analysis["hit_rate"] is not None
+                    else "—"
+                ),
+                "Avg Shots": (
+                    f"{venue_summary.get('Shots Avg', 0):.2f}"
+                    if venue_summary.get("Shots Avg") is not None
+                    else "—"
+                ),
+                "Avg SOT": (
+                    f"{venue_summary.get('Shots on Target Avg', 0):.2f}"
+                    if venue_summary.get("Shots on Target Avg") is not None
+                    else "—"
+                ),
+                "Avg Corners": (
+                    f"{venue_summary.get('Corners Avg', 0):.2f}"
+                    if venue_summary.get("Corners Avg") is not None
+                    else "—"
+                ),
+                "Avg Goals": (
+                    f"{venue_summary.get('Goals Avg', 0):.2f}"
+                    if venue_summary.get("Goals Avg") is not None
+                    else "—"
+                )
+            }
+        )
+
+    comparison_df = pd.DataFrame(
+        comparison_data
+    )
+
+    st.dataframe(
+        comparison_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # STEP 10 — MARKET HISTORY
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Market History")
+
+    st.caption(
+        f"{team} — {market} {direction} {line} "
+        f"using the selected historical sample."
+    )
+
+    history_df = market_history(
+        m,
+        market,
+        direction,
+        line
+    )
+
+    if not history_df.empty:
 
         st.dataframe(
-            result,
-            
+            history_df,
             use_container_width=True,
             hide_index=True
         )
+
+    else:
+        st.info(
+            "No match history is available for the selected filters."
+        )
+
+    # ---------------------------------------------------------
+    # HIT / MISS SUMMARY
+    # ---------------------------------------------------------
+
+    h1, h2, h3 = st.columns(3)
+
+    h1.metric(
+        "Hits",
+        hits
+    )
+
+    h2.metric(
+        "Misses",
+        misses
+    )
+
+    h3.metric(
+        "Matches analysed",
+        sample_size
+    )
 
 with tab3:
     st.subheader("Bookmaker Market Monitor")

@@ -334,7 +334,7 @@ with tab3:
 
     with col1:
         bookmaker = st.selectbox("Bookmaker", ["SportyBet", "SunBet", "Virgin Bet"], key="monitor_bookmaker")
-        match_name = st.text_input("Match", "", placeholder="e.g. Chelsea vs Barcelona", key="monitor_match")
+        match_name = st.text_input("Match", "", placeholder="e.g. Chelsea vs Brentford", key="monitor_match")
         match_date = st.date_input("Match date", key="monitor_match_date")
         capture_time = st.time_input("Capture time", key="monitor_capture_time")
         teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
@@ -395,8 +395,24 @@ with tab3:
     if st.session_state.market_watchlist:
         watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
 
-        status_options = ["Watching", "Won", "Lost", "Void"]
+        # --- Summary metrics ---
+        total = len(watchlist_df)
+        watching = (watchlist_df["Status"] == "Watching").sum()
+        won = (watchlist_df["Status"] == "Won").sum()
+        lost = (watchlist_df["Status"] == "Lost").sum()
+        void = (watchlist_df["Status"] == "Void").sum()
+        settled = won + lost
+        tracked_hit_rate_display = f"{(won/settled*100):.1f}%" if settled > 0 else "—"
 
+        s1, s2, s3, s4, s5 = st.columns(5)
+        s1.metric("Total", total)
+        s2.metric("Watching", watching)
+        s3.metric("Won", won)
+        s4.metric("Lost", lost)
+        s5.metric("Tracked Hit Rate", tracked_hit_rate_display)
+
+        # --- Status editor ---
+        status_options = ["Watching", "Won", "Lost", "Void"]
         for i in range(len(watchlist_df)):
             current_status = watchlist_df.loc[i, "Status"] if "Status" in watchlist_df.columns else "Watching"
             if current_status not in status_options:
@@ -409,13 +425,11 @@ with tab3:
             )
             st.session_state.market_watchlist[i]["Status"] = new_status
 
+        # Save status changes to file
+        pd.DataFrame(st.session_state.market_watchlist).to_csv(WATCHLIST_FILE, index=False)
         watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
 
-        st.dataframe(
-            watchlist_df,
-            use_container_width=True,
-            hide_index=True
-        )
+        st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
 
         csv_watchlist = watchlist_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Watchlist CSV", csv_watchlist, "market_watchlist.csv", "text/csv", key="download_watchlist")

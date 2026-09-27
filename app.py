@@ -2,41 +2,12 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import os
-import json
-from datetime import datetime, date, time
-
-# ============================================================
-# FOOTBALL BETTING RESEARCH TOOL
-# STEPS 1–100
-#
-# Steps 1–90:
-#   Core dataset loading
-#   Team research
-#   Market testing
-#   Bookmaker monitor
-#   Match research
-#   Historical/context analysis
-#
-# Steps 91–100:
-#   91. Data Quality Dashboard
-#   92. Team Data Coverage
-#   93. Recent Form Engine
-#   94. Market Consistency Analysis
-#   95. Opponent Strength / Context
-#   96. Line Sensitivity
-#   97. Market Stability Panel
-#   98. Match Research Scorecard
-#   99. Research Audit Trail
-#   100. Research Performance Dashboard
-#
-# IMPORTANT:
-# This application is a research/audit tool.
-# Historical statistics are descriptive and are not forecasts.
-# ============================================================
+import importlib
+from datetime import datetime
 
 
 # ============================================================
-# PAGE CONFIG
+# PAGE CONFIGURATION
 # ============================================================
 
 st.set_page_config(
@@ -46,21 +17,16 @@ st.set_page_config(
 )
 
 st.title("⚽ Football Betting Research Tool — V1")
+
 st.caption(
     "Research assistant, not a prediction engine. "
-    "Use match-by-match data to test markets, examine context, "
-    "and audit research decisions."
+    "Use match-by-match data to test a market before betting."
 )
 
 
 # ============================================================
-# CONFIGURATION
+# DATA CONFIGURATION
 # ============================================================
-
-MASTER_FILE = "football_master_2024_27_v1.csv"
-
-WATCHLIST_FILE = "market_watchlist.csv"
-AUDIT_FILE = "research_audit_log.csv"
 
 REQUIRED_COLUMNS = [
     "date",
@@ -85,17 +51,13 @@ MARKET_COLUMN_MAP = {
     "Goals": "team_goals"
 }
 
-BASE_MARKET_COLUMNS = [
-    "Shots",
-    "Shots on Target",
-    "Corners",
-    "Goals"
-]
+WATCHLIST_FILE = "market_watchlist.csv"
+
+MASTER_FILE = "football_master_2024_27_v1.csv"
 
 
 # ============================================================
-# STEP 1–10
-# DATA CLEANING / NORMALISATION
+# DATA FUNCTIONS
 # ============================================================
 
 def clean_data(df):
@@ -162,10 +124,6 @@ def clean_data(df):
     return df
 
 
-# ============================================================
-# TEAM PERSPECTIVE ENGINE
-# ============================================================
-
 def team_matches(df, team):
     """Convert raw match data into selected team's perspective."""
 
@@ -227,7 +185,7 @@ def filtered_team_matches(
     venue="All",
     sample=15
 ):
-    """Consistent team filtering engine."""
+    """Consistent filtering engine."""
 
     m = team_matches(
         data,
@@ -258,17 +216,13 @@ def filtered_team_matches(
     return m.head(sample)
 
 
-# ============================================================
-# MARKET ENGINE
-# ============================================================
-
 def analyse_market(
     df,
     market,
     direction,
     line
 ):
-    """Analyse historical market performance."""
+    """Analyse a selected team market."""
 
     empty_result = {
         "hit_rate": None,
@@ -311,12 +265,14 @@ def analyse_market(
         len(values)
     )
 
-    misses = sample_size - hits
+    misses = (
+        sample_size
+        -
+        hits
+    )
 
     return {
-        "hit_rate": (
-            hits / sample_size
-        ),
+        "hit_rate": hits / sample_size,
         "hits": hits,
         "misses": misses,
         "sample_size": sample_size
@@ -329,7 +285,7 @@ def market_history(
     direction,
     line
 ):
-    """Create transparent match-by-match history."""
+    """Create transparent match-by-match market history."""
 
     if df is None or df.empty:
         return pd.DataFrame()
@@ -352,13 +308,14 @@ def market_history(
         column
     ]
 
-    available = [
-        c for c in result_columns
+    available_columns = [
+        c
+        for c in result_columns
         if c in df.columns
     ]
 
     result = df[
-        available
+        available_columns
     ].copy()
 
     if column in result.columns:
@@ -369,10 +326,13 @@ def market_history(
         )
 
         if direction == "Over":
+
             result["Hit"] = (
                 result[column] > line
             )
+
         else:
+
             result["Hit"] = (
                 result[column] < line
             )
@@ -394,7 +354,7 @@ def hit_rate(
     line,
     over=True
 ):
-    """Calculate simple historical hit rate."""
+    """Calculate historical hit rate."""
 
     s = pd.to_numeric(
         series,
@@ -416,53 +376,41 @@ def hit_rate(
     return hits / len(s)
 
 
-# ============================================================
-# GENERAL HELPERS
-# ============================================================
-
 def fmt_pct(value):
 
-    if (
-        value is None
-        or pd.isna(value)
-    ):
+    if value is None or pd.isna(value):
         return "—"
 
     return f"{value * 100:.1f}%"
 
 
-def fmt_num(value):
-
-    if (
-        value is None
-        or pd.isna(value)
-    ):
-        return "—"
-
-    return f"{value:.2f}"
-
-
-def sample_quality(sample_size):
+def sample_quality(
+    sample_size
+):
 
     if sample_size == 0:
+
         return (
             "No data",
-            "No matches are available."
+            "No matches are available for these filters."
         )
 
     if sample_size < 5:
+
         return (
             "Very small sample",
-            "Fewer than 5 matches are available."
+            "Use caution: fewer than 5 matches are available."
         )
 
     if sample_size < 10:
+
         return (
             "Small sample",
             "A limited historical sample is available."
         )
 
     if sample_size < 15:
+
         return (
             "Reasonable sample",
             "A useful historical sample is available."
@@ -472,75 +420,6 @@ def sample_quality(sample_size):
         "Strong sample",
         "15 or more matches are available."
     )
-
-
-def average_value(
-    df,
-    column
-):
-
-    if (
-        df is None
-        or df.empty
-        or column not in df.columns
-    ):
-        return None
-
-    values = pd.to_numeric(
-        df[column],
-        errors="coerce"
-    ).dropna()
-
-    if values.empty:
-        return None
-
-    return values.mean()
-
-
-def median_value(
-    df,
-    column
-):
-
-    if (
-        df is None
-        or df.empty
-        or column not in df.columns
-    ):
-        return None
-
-    values = pd.to_numeric(
-        df[column],
-        errors="coerce"
-    ).dropna()
-
-    if values.empty:
-        return None
-
-    return values.median()
-
-
-def std_value(
-    df,
-    column
-):
-
-    if (
-        df is None
-        or df.empty
-        or column not in df.columns
-    ):
-        return None
-
-    values = pd.to_numeric(
-        df[column],
-        errors="coerce"
-    ).dropna()
-
-    if len(values) < 2:
-        return None
-
-    return values.std()
 
 
 def team_summary(df):
@@ -574,12 +453,35 @@ def team_summary(df):
     return metrics
 
 
-def match_team_summary(matches):
+def average_value(
+    df,
+    column
+):
 
     if (
-        matches is None
-        or matches.empty
+        df is None
+        or df.empty
+        or column not in df.columns
     ):
+        return None
+
+    values = pd.to_numeric(
+        df[column],
+        errors="coerce"
+    ).dropna()
+
+    if values.empty:
+        return None
+
+    return values.mean()
+
+
+def match_team_summary(
+    matches
+):
+
+    if matches is None or matches.empty:
+
         return {
             "Matches": 0,
             "Shots": None,
@@ -590,63 +492,27 @@ def match_team_summary(matches):
 
     return {
         "Matches": len(matches),
+
         "Shots": average_value(
             matches,
             "team_shots"
         ),
+
         "SOT": average_value(
             matches,
             "team_sot"
         ),
+
         "Corners": average_value(
             matches,
             "team_corners"
         ),
+
         "Goals": average_value(
             matches,
             "team_goals"
         )
     }
-
-
-def team_list(data):
-
-    return sorted(
-        set(
-            data["home_team"]
-            .dropna()
-        )
-        |
-        set(
-            data["away_team"]
-            .dropna()
-        )
-    )
-
-
-def season_list(data):
-
-    return [
-        "All"
-    ] + sorted(
-        data["season"]
-        .dropna()
-        .unique()
-        .tolist(),
-        reverse=True
-    )
-
-
-def competition_list(data):
-
-    return [
-        "All"
-    ] + sorted(
-        data["competition"]
-        .dropna()
-        .unique()
-        .tolist()
-    )
 
 
 def get_match_history(
@@ -659,29 +525,34 @@ def get_match_history(
         (
             (
                 data["home_team"]
-                == home_team
+                ==
+                home_team
             )
             &
             (
                 data["away_team"]
-                == away_team
+                ==
+                away_team
             )
         )
         |
         (
             (
                 data["home_team"]
-                == away_team
+                ==
+                away_team
             )
             &
             (
                 data["away_team"]
-                == home_team
+                ==
+                home_team
             )
         )
     ].copy()
 
     if "date" in h2h.columns:
+
         h2h = h2h.sort_values(
             "date",
             ascending=False
@@ -712,50 +583,486 @@ def build_market_comparison(
         line
     )
 
-    return pd.DataFrame([
-        {
-            "Team": "Home",
-            "Matches": home_result[
-                "sample_size"
-            ],
-            "Hits": home_result[
-                "hits"
-            ],
-            "Misses": home_result[
-                "misses"
-            ],
-            "Hit Rate": (
-                fmt_pct(
-                    home_result[
-                        "hit_rate"
-                    ]
+    return pd.DataFrame(
+        [
+            {
+                "Team": "Home",
+                "Matches": home_result[
+                    "sample_size"
+                ],
+                "Hits": home_result[
+                    "hits"
+                ],
+                "Misses": home_result[
+                    "misses"
+                ],
+                "Hit Rate": (
+                    f"{home_result['hit_rate'] * 100:.1f}%"
+                    if home_result["hit_rate"]
+                    is not None
+                    else "—"
                 )
-            )
-        },
-        {
-            "Team": "Away",
-            "Matches": away_result[
-                "sample_size"
-            ],
-            "Hits": away_result[
-                "hits"
-            ],
-            "Misses": away_result[
-                "misses"
-            ],
-            "Hit Rate": (
-                fmt_pct(
-                    away_result[
-                        "hit_rate"
-                    ]
+            },
+            {
+                "Team": "Away",
+                "Matches": away_result[
+                    "sample_size"
+                ],
+                "Hits": away_result[
+                    "hits"
+                ],
+                "Misses": away_result[
+                    "misses"
+                ],
+                "Hit Rate": (
+                    f"{away_result['hit_rate'] * 100:.1f}%"
+                    if away_result["hit_rate"]
+                    is not None
+                    else "—"
                 )
-            )
-        }
-    ])
+            }
+        ]
+    )
+
+
+def team_list(data):
+
+    return sorted(
+        set(
+            data["home_team"].dropna()
+        )
+        |
+        set(
+            data["away_team"].dropna()
+        )
+    )
+
+
+def season_list(data):
+
+    return [
+        "All"
+    ] + sorted(
+        data["season"]
+        .dropna()
+        .unique()
+        .tolist(),
+        reverse=True
+    )
+
+
+def competition_list(data):
+
+    return [
+        "All"
+    ] + sorted(
+        data["competition"]
+        .dropna()
+        .unique()
+        .tolist()
+    )
 
 
 # ============================================================
-# DATA LOAD
+# REAL EXTERNAL DATA SOURCE HEALTH CHECKS
+# ============================================================
+
+def check_statsbomb_health():
+
+    result = {
+        "Source": "StatsBomb",
+        "Package": "statsbombpy",
+        "Installed": False,
+        "Connected": False,
+        "Data Retrieved": False,
+        "Records": 0,
+        "Status": "Not checked",
+        "Details": ""
+    }
+
+    try:
+
+        importlib.import_module(
+            "statsbombpy"
+        )
+
+        result["Installed"] = True
+
+    except Exception:
+
+        result["Status"] = (
+            "Package missing"
+        )
+
+        result["Details"] = (
+            "Install with: "
+            "pip install statsbombpy"
+        )
+
+        return result
+
+    try:
+
+        from statsbombpy import sb
+
+        competitions = sb.competitions()
+
+        result["Connected"] = True
+
+        if competitions is not None:
+
+            result["Records"] = len(
+                competitions
+            )
+
+        if (
+            competitions is not None
+            and len(competitions) > 0
+        ):
+
+            result["Data Retrieved"] = True
+
+            result["Status"] = (
+                "Healthy"
+            )
+
+            result["Details"] = (
+                "StatsBomb competitions "
+                "successfully retrieved."
+            )
+
+        else:
+
+            result["Status"] = (
+                "Connected but empty"
+            )
+
+            result["Details"] = (
+                "StatsBomb responded, but "
+                "no competition records "
+                "were returned."
+            )
+
+    except Exception as exc:
+
+        result["Status"] = (
+            "Connection failed"
+        )
+
+        result["Details"] = (
+            f"{type(exc).__name__}: "
+            f"{str(exc)}"
+        )
+
+    return result
+
+
+def check_understat_health():
+
+    result = {
+        "Source": "Understat",
+        "Package": "understatapi",
+        "Installed": False,
+        "Connected": False,
+        "Data Retrieved": False,
+        "Records": 0,
+        "Status": "Not checked",
+        "Details": ""
+    }
+
+    try:
+
+        importlib.import_module(
+            "understatapi"
+        )
+
+        result["Installed"] = True
+
+    except Exception:
+
+        result["Status"] = (
+            "Package missing"
+        )
+
+        result["Details"] = (
+            "Install with: "
+            "pip install understatapi"
+        )
+
+        return result
+
+    try:
+
+        from understatapi import (
+            UnderstatClient
+        )
+
+        # ----------------------------------------------------
+        # REAL UNDERSTAT REQUEST
+        # ----------------------------------------------------
+        #
+        # 2019 is deliberately used because it is an established
+        # historical Understat season and is only being used as
+        # a connectivity/data test.
+        #
+        # It does NOT modify the master dataset.
+        # ----------------------------------------------------
+
+        with UnderstatClient() as understat:
+
+            league_data = (
+                understat
+                .league(
+                    league="EPL"
+                )
+                .get_player_data(
+                    season="2019"
+                )
+            )
+
+        result["Connected"] = True
+
+        if league_data is not None:
+
+            try:
+
+                result["Records"] = len(
+                    league_data
+                )
+
+            except Exception:
+
+                result["Records"] = 1
+
+        if (
+            league_data is not None
+            and result["Records"] > 0
+        ):
+
+            result["Data Retrieved"] = True
+
+            result["Status"] = (
+                "Healthy"
+            )
+
+            result["Details"] = (
+                "Understat EPL player data "
+                "successfully retrieved."
+            )
+
+        else:
+
+            result["Status"] = (
+                "Connected but empty"
+            )
+
+            result["Details"] = (
+                "Understat responded, but "
+                "no usable records were returned."
+            )
+
+    except Exception as exc:
+
+        result["Status"] = (
+            "Connection failed"
+        )
+
+        result["Details"] = (
+            f"{type(exc).__name__}: "
+            f"{str(exc)}"
+        )
+
+    return result
+
+
+def run_external_health_checks():
+
+    return [
+        check_statsbomb_health(),
+        check_understat_health()
+    ]
+
+
+def health_icon(status):
+
+    if status == "Healthy":
+        return "🟢"
+
+    if status == "Package missing":
+        return "🔴"
+
+    if status == "Connection failed":
+        return "🔴"
+
+    if status == "Connected but empty":
+        return "🟠"
+
+    return "⚪"
+
+
+# ============================================================
+# DEMO DATA
+# ============================================================
+
+demo = pd.DataFrame(
+    [
+        [
+            "2026-09-18",
+            "2026/27",
+            "Premier League",
+            "Chelsea",
+            "Brentford",
+            2,
+            0,
+            17,
+            7,
+            5,
+            2,
+            6,
+            3
+        ],
+        [
+            "2026-09-14",
+            "2026/27",
+            "Premier League",
+            "Everton",
+            "Chelsea",
+            0,
+            2,
+            9,
+            14,
+            3,
+            5,
+            4,
+            7
+        ],
+        [
+            "2026-09-07",
+            "2026/27",
+            "Premier League",
+            "Chelsea",
+            "Fulham",
+            3,
+            1,
+            19,
+            8,
+            7,
+            3,
+            8,
+            2
+        ],
+        [
+            "2026-08-30",
+            "2026/27",
+            "Premier League",
+            "Newcastle",
+            "Chelsea",
+            1,
+            1,
+            12,
+            11,
+            4,
+            4,
+            5,
+            5
+        ],
+        [
+            "2026-08-24",
+            "2026/27",
+            "Premier League",
+            "Chelsea",
+            "Wolves",
+            2,
+            1,
+            16,
+            10,
+            6,
+            3,
+            7,
+            4
+        ],
+        [
+            "2026-09-18",
+            "2026/27",
+            "Bundesliga",
+            "Bayern Munich",
+            "Union Berlin",
+            3,
+            1,
+            20,
+            7,
+            8,
+            2,
+            8,
+            2
+        ],
+        [
+            "2026-09-13",
+            "2026/27",
+            "Bundesliga",
+            "Mainz",
+            "Bayern Munich",
+            0,
+            3,
+            6,
+            18,
+            2,
+            7,
+            3,
+            8
+        ],
+        [
+            "2026-09-06",
+            "2026/27",
+            "Bundesliga",
+            "Bayern Munich",
+            "Freiburg",
+            2,
+            0,
+            17,
+            8,
+            6,
+            2,
+            9,
+            4
+        ],
+        [
+            "2026-08-30",
+            "2026/27",
+            "Bundesliga",
+            "Dortmund",
+            "Bayern Munich",
+            1,
+            2,
+            11,
+            13,
+            4,
+            5,
+            5,
+            6
+        ],
+        [
+            "2026-08-23",
+            "2026/27",
+            "Bundesliga",
+            "Bayern Munich",
+            "Leipzig",
+            4,
+            1,
+            22,
+            9,
+            9,
+            3,
+            10,
+            2
+        ]
+    ],
+    columns=REQUIRED_COLUMNS
+)
+
+
+# ============================================================
+# LOAD DATA
 # ============================================================
 
 st.sidebar.header("1. Data")
@@ -774,13 +1081,13 @@ if uploaded is not None:
         )
 
         st.sidebar.success(
-            f"Uploaded dataset: {len(data):,} matches"
+            f"Loaded {len(data)} matches"
         )
 
     except Exception as exc:
 
         st.error(
-            f"Could not read uploaded CSV: {exc}"
+            f"Could not read the uploaded CSV: {exc}"
         )
 
         st.stop()
@@ -800,35 +1107,44 @@ else:
             )
 
             st.sidebar.success(
-                f"Primary dataset: "
-                f"{len(data):,} matches"
+                f"Using master dataset — "
+                f"{len(data)} matches"
             )
 
         except Exception as exc:
 
             st.error(
-                f"Could not read {MASTER_FILE}: {exc}"
+                f"Could not read "
+                f"{MASTER_FILE}: {exc}"
             )
 
             st.stop()
 
     else:
 
-        st.error(
+        st.warning(
             f"{MASTER_FILE} was not found. "
-            "Place the real CSV in the same folder "
-            "as app.py."
+            "The app is using the built-in "
+            "demo dataset."
         )
 
-        st.stop()
+        data = clean_data(
+            demo
+        )
+
+        st.sidebar.info(
+            f"Using demo dataset — "
+            f"{len(data)} matches"
+        )
 
 
 # ============================================================
-# DATA VALIDATION
+# REQUIRED COLUMN CHECK
 # ============================================================
 
 missing = [
-    c for c in REQUIRED_COLUMNS
+    c
+    for c in REQUIRED_COLUMNS
     if c not in data.columns
 ]
 
@@ -843,79 +1159,50 @@ if missing:
 
 
 # ============================================================
-# SESSION STATE
+# SIDEBAR DATA STATUS
 # ============================================================
 
-if "market_watchlist" not in st.session_state:
+st.sidebar.divider()
 
-    if os.path.exists(
-        WATCHLIST_FILE
-    ):
+st.sidebar.subheader(
+    "Dataset Status"
+)
 
-        try:
+st.sidebar.metric(
+    "Loaded matches",
+    len(data)
+)
 
-            loaded = pd.read_csv(
-                WATCHLIST_FILE
-            )
+if "date" in data.columns:
 
-            if "Status" not in loaded.columns:
-                loaded["Status"] = "Watching"
+    valid_dates = data[
+        "date"
+    ].dropna()
 
-            if "Actual Result" not in loaded.columns:
-                loaded["Actual Result"] = ""
+    if not valid_dates.empty:
 
-            st.session_state.market_watchlist = (
-                loaded
-                .fillna("")
-                .to_dict("records")
-            )
-
-        except Exception:
-
-            st.session_state.market_watchlist = []
-
-    else:
-
-        st.session_state.market_watchlist = []
+        st.sidebar.write(
+            f"Date range: "
+            f"{valid_dates.min().date()} "
+            f"→ "
+            f"{valid_dates.max().date()}"
+        )
 
 
 # ============================================================
 # TABS
 # ============================================================
 
-tabs = st.tabs([
-    "🔎 Team Research",
-    "🎯 Market Tester",
-    "📊 Bookmaker Monitor",
-    "📥 Data Format",
-    "🔬 Match Research",
-    "🧪 Data Quality",
-    "📈 Coverage",
-    "📋 Recent Form",
-    "📊 Consistency",
-    "🎚️ Line Sensitivity",
-    "🧭 Stability",
-    "📝 Scorecard",
-    "🗂️ Audit Trail",
-    "🏁 Performance"
-])
-
-(
-    tab1,
-    tab2,
-    tab3,
-    tab4,
-    tab5,
-    tab6,
-    tab7,
-    tab8,
-    tab9,
-    tab10,
-    tab11,
-    tab12,
-    tab13,
-    tab14
-) = tabs
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(
+    [
+        "🔎 Team Research",
+        "🎯 Market Tester",
+        "📊 Bookmaker Monitor",
+        "📥 Data Format",
+        "🔬 Match Research",
+        "🔌 Data Health"
+    ]
+)
 
 
 # ============================================================
@@ -928,7 +1215,9 @@ with tab1:
         "Team Research Dashboard"
     )
 
-    teams = team_list(data)
+    teams = team_list(
+        data
+    )
 
     dashboard_team = st.selectbox(
         "Team",
@@ -950,45 +1239,65 @@ with tab1:
 
     dashboard_venue = st.selectbox(
         "Venue",
-        ["All", "Home", "Away"],
+        [
+            "All",
+            "Home",
+            "Away"
+        ],
         key="dashboard_venue"
     )
 
     dashboard_sample = st.select_slider(
         "Recent sample",
-        options=[5, 10, 15],
+        options=[
+            5,
+            10,
+            15
+        ],
         value=10,
         key="dashboard_sample"
     )
 
     dashboard_df = filtered_team_matches(
-        data,
-        dashboard_team,
-        dashboard_season,
-        dashboard_competition,
-        dashboard_venue,
-        dashboard_sample
+        data=data,
+        team=dashboard_team,
+        season=dashboard_season,
+        competition=dashboard_competition,
+        venue=dashboard_venue,
+        sample=dashboard_sample
     )
 
     dashboard_metrics = team_summary(
         dashboard_df
     )
 
-    quality_label, quality_message = sample_quality(
-        len(dashboard_df)
+    dashboard_size = len(
+        dashboard_df
     )
 
-    if len(dashboard_df) < 5:
+    quality_label, quality_message = sample_quality(
+        dashboard_size
+    )
+
+    if dashboard_size < 5:
+
         st.warning(
-            f"⚠️ {quality_label}: {quality_message}"
+            f"⚠️ {quality_label}: "
+            f"{quality_message}"
         )
-    elif len(dashboard_df) < 10:
+
+    elif dashboard_size < 10:
+
         st.info(
-            f"ℹ️ {quality_label}: {quality_message}"
+            f"ℹ️ {quality_label}: "
+            f"{quality_message}"
         )
+
     else:
+
         st.success(
-            f"✓ {quality_label}: {quality_message}"
+            f"✓ {quality_label}: "
+            f"{quality_message}"
         )
 
     d1, d2, d3, d4, d5 = st.columns(5)
@@ -1003,37 +1312,45 @@ with tab1:
 
     d2.metric(
         "Avg Shots",
-        fmt_num(
-            dashboard_metrics.get(
+        (
+            f"{dashboard_metrics['Shots Avg']:.2f}"
+            if dashboard_metrics.get(
                 "Shots Avg"
-            )
+            ) is not None
+            else "—"
         )
     )
 
     d3.metric(
         "Avg SOT",
-        fmt_num(
-            dashboard_metrics.get(
+        (
+            f"{dashboard_metrics['Shots on Target Avg']:.2f}"
+            if dashboard_metrics.get(
                 "Shots on Target Avg"
-            )
+            ) is not None
+            else "—"
         )
     )
 
     d4.metric(
         "Avg Corners",
-        fmt_num(
-            dashboard_metrics.get(
+        (
+            f"{dashboard_metrics['Corners Avg']:.2f}"
+            if dashboard_metrics.get(
                 "Corners Avg"
-            )
+            ) is not None
+            else "—"
         )
     )
 
     d5.metric(
         "Avg Goals",
-        fmt_num(
-            dashboard_metrics.get(
+        (
+            f"{dashboard_metrics['Goals Avg']:.2f}"
+            if dashboard_metrics.get(
                 "Goals Avg"
-            )
+            ) is not None
+            else "—"
         )
     )
 
@@ -1045,7 +1362,12 @@ with tab1:
 
     overview_rows = []
 
-    for market_name in BASE_MARKET_COLUMNS:
+    for market_name in [
+        "Shots",
+        "Shots on Target",
+        "Corners",
+        "Goals"
+    ]:
 
         for direction_name in [
             "Over",
@@ -1071,32 +1393,112 @@ with tab1:
                     "sample_size"
                 ] > 0:
 
-                    overview_rows.append({
-                        "Market": market_name,
-                        "Direction": direction_name,
-                        "Line": test_line,
-                        "Hits": result[
-                            "hits"
-                        ],
-                        "Sample": result[
-                            "sample_size"
-                        ],
-                        "Hit Rate": fmt_pct(
-                            result[
-                                "hit_rate"
-                            ]
-                        )
-                    })
+                    overview_rows.append(
+                        {
+                            "Market": market_name,
+                            "Direction": direction_name,
+                            "Line": test_line,
+                            "Hits": result[
+                                "hits"
+                            ],
+                            "Sample": result[
+                                "sample_size"
+                            ],
+                            "Hit Rate": (
+                                f"{result['hit_rate'] * 100:.1f}%"
+                            )
+                        }
+                    )
 
-    if overview_rows:
+    overview_df = pd.DataFrame(
+        overview_rows
+    )
+
+    if not overview_df.empty:
 
         st.dataframe(
-            pd.DataFrame(
-                overview_rows
-            ),
+            overview_df,
             use_container_width=True,
             hide_index=True
         )
+
+    else:
+
+        st.info(
+            "No market data is available "
+            "for the selected filters."
+        )
+
+    st.divider()
+
+    st.subheader(
+        "Home / Away Comparison"
+    )
+
+    split_rows = []
+
+    for venue_label in [
+        "Home",
+        "Away"
+    ]:
+
+        split_df = filtered_team_matches(
+            data=data,
+            team=dashboard_team,
+            season=dashboard_season,
+            competition=dashboard_competition,
+            venue=venue_label,
+            sample=dashboard_sample
+        )
+
+        split_summary = team_summary(
+            split_df
+        )
+
+        split_rows.append(
+            {
+                "Venue": venue_label,
+                "Matches": len(
+                    split_df
+                ),
+                "Avg Shots": (
+                    f"{split_summary.get('Shots Avg', 0):.2f}"
+                    if split_summary.get(
+                        "Shots Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg SOT": (
+                    f"{split_summary.get('Shots on Target Avg', 0):.2f}"
+                    if split_summary.get(
+                        "Shots on Target Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg Corners": (
+                    f"{split_summary.get('Corners Avg', 0):.2f}"
+                    if split_summary.get(
+                        "Corners Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg Goals": (
+                    f"{split_summary.get('Goals Avg', 0):.2f}"
+                    if split_summary.get(
+                        "Goals Avg"
+                    ) is not None
+                    else "—"
+                )
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(
+            split_rows
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.divider()
 
@@ -1104,29 +1506,39 @@ with tab1:
         "Recent Match History"
     )
 
-    display_columns = [
-        "date",
-        "home_team",
-        "away_team",
-        "venue",
-        "team_shots",
-        "team_sot",
-        "team_corners",
-        "team_goals"
-    ]
+    if not dashboard_df.empty:
 
-    available_columns = [
-        c for c in display_columns
-        if c in dashboard_df.columns
-    ]
+        display_columns = [
+            "date",
+            "home_team",
+            "away_team",
+            "venue",
+            "team_shots",
+            "team_sot",
+            "team_corners",
+            "team_goals"
+        ]
 
-    st.dataframe(
-        dashboard_df[
-            available_columns
-        ],
-        use_container_width=True,
-        hide_index=True
-    )
+        available_columns = [
+            c
+            for c in display_columns
+            if c in dashboard_df.columns
+        ]
+
+        st.dataframe(
+            dashboard_df[
+                available_columns
+            ],
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info(
+            "No matches are available "
+            "for the selected filters."
+        )
 
 
 # ============================================================
@@ -1136,7 +1548,7 @@ with tab1:
 with tab2:
 
     st.subheader(
-        "🎯 Test a Market"
+        "Test a Market"
     )
 
     team = st.selectbox(
@@ -1159,19 +1571,31 @@ with tab2:
 
     venue2 = st.selectbox(
         "Venue",
-        ["All", "Home", "Away"],
+        [
+            "All",
+            "Home",
+            "Away"
+        ],
         key="market_venue"
     )
 
     market = st.selectbox(
         "Market",
-        BASE_MARKET_COLUMNS,
+        [
+            "Shots",
+            "Shots on Target",
+            "Corners",
+            "Goals"
+        ],
         key="market_type"
     )
 
     direction = st.selectbox(
         "Direction",
-        ["Over", "Under"],
+        [
+            "Over",
+            "Under"
+        ],
         key="market_direction"
     )
 
@@ -1195,18 +1619,22 @@ with tab2:
 
     n2 = st.select_slider(
         "Recent sample",
-        options=[5, 10, 15],
+        options=[
+            5,
+            10,
+            15
+        ],
         value=10,
         key="market_sample"
     )
 
     m = filtered_team_matches(
-        data,
-        team,
-        season2,
-        competition2,
-        venue2,
-        n2
+        data=data,
+        team=team,
+        season=season2,
+        competition=competition2,
+        venue=venue2,
+        sample=n2
     )
 
     analysis = analyse_market(
@@ -1216,12 +1644,48 @@ with tab2:
         line
     )
 
-    rate = analysis["hit_rate"]
-    hits = analysis["hits"]
-    misses = analysis["misses"]
-    sample_size = analysis["sample_size"]
+    rate = analysis[
+        "hit_rate"
+    ]
+
+    hits = analysis[
+        "hits"
+    ]
+
+    misses = analysis[
+        "misses"
+    ]
+
+    sample_size = analysis[
+        "sample_size"
+    ]
 
     breakeven = 1 / odds
+
+    quality_label, quality_message = sample_quality(
+        sample_size
+    )
+
+    if sample_size < 5:
+
+        st.warning(
+            f"⚠️ {quality_label}: "
+            f"{quality_message}"
+        )
+
+    elif sample_size < 10:
+
+        st.info(
+            f"ℹ️ {quality_label}: "
+            f"{quality_message}"
+        )
+
+    else:
+
+        st.success(
+            f"✓ {quality_label}: "
+            f"{quality_message}"
+        )
 
     a, b, c, d = st.columns(4)
 
@@ -1240,43 +1704,148 @@ with tab2:
         sample_size
     )
 
+    if rate is not None:
+
+        comparison = (
+            "Above"
+            if rate >= breakeven
+            else "Below"
+        )
+
+    else:
+
+        comparison = "—"
+
     d.metric(
         "Historical vs break-even",
-        (
-            "Above"
-            if rate is not None
-            and rate >= breakeven
-            else (
-                "Below"
-                if rate is not None
-                else "—"
-            )
-        )
+        comparison
     )
 
     if rate is not None:
 
         st.progress(
             min(
-                max(rate, 0),
+                max(
+                    rate,
+                    0
+                ),
                 1
             )
         )
 
+        edge = (
+            rate * 100
+            -
+            breakeven * 100
+        )
+
         st.metric(
             "Historical difference vs break-even",
-            f"{(rate - breakeven) * 100:+.1f} pp"
+            f"{edge:+.1f} percentage points"
         )
 
     st.caption(
         "Historical hit rate is descriptive only. "
-        "It does not establish the probability of the next match."
+        "It does not establish the probability "
+        "of the next match."
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Overall / Home / Away Comparison"
+    )
+
+    comparison_data = []
+
+    for venue_label in [
+        "All",
+        "Home",
+        "Away"
+    ]:
+
+        venue_df = filtered_team_matches(
+            data=data,
+            team=team,
+            season=season2,
+            competition=competition2,
+            venue=venue_label,
+            sample=n2
+        )
+
+        venue_analysis = analyse_market(
+            venue_df,
+            market,
+            direction,
+            line
+        )
+
+        venue_summary = team_summary(
+            venue_df
+        )
+
+        comparison_data.append(
+            {
+                "Venue": venue_label,
+                "Matches": venue_analysis[
+                    "sample_size"
+                ],
+                "Hit Rate": (
+                    f"{venue_analysis['hit_rate'] * 100:.1f}%"
+                    if venue_analysis[
+                        "hit_rate"
+                    ] is not None
+                    else "—"
+                ),
+                "Avg Shots": (
+                    f"{venue_summary.get('Shots Avg', 0):.2f}"
+                    if venue_summary.get(
+                        "Shots Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg SOT": (
+                    f"{venue_summary.get('Shots on Target Avg', 0):.2f}"
+                    if venue_summary.get(
+                        "Shots on Target Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg Corners": (
+                    f"{venue_summary.get('Corners Avg', 0):.2f}"
+                    if venue_summary.get(
+                        "Corners Avg"
+                    ) is not None
+                    else "—"
+                ),
+                "Avg Goals": (
+                    f"{venue_summary.get('Goals Avg', 0):.2f}"
+                    if venue_summary.get(
+                        "Goals Avg"
+                    ) is not None
+                    else "—"
+                )
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(
+            comparison_data
+        ),
+        use_container_width=True,
+        hide_index=True
     )
 
     st.divider()
 
     st.subheader(
         "Market History"
+    )
+
+    st.caption(
+        f"{team} — {market} "
+        f"{direction} {line} "
+        "using the selected historical sample."
     )
 
     history_df = market_history(
@@ -1292,6 +1861,13 @@ with tab2:
             history_df,
             use_container_width=True,
             hide_index=True
+        )
+
+    else:
+
+        st.info(
+            "No match history is available "
+            "for the selected filters."
         )
 
     h1, h2, h3 = st.columns(3)
@@ -1313,14 +1889,57 @@ with tab2:
 
 
 # ============================================================
-# TAB 3 — BOOKMAKER MONITOR
+# TAB 3 — BOOKMAKER MARKET MONITOR
 # ============================================================
 
 with tab3:
 
     st.subheader(
-        "📊 Bookmaker Market Monitor"
+        "Bookmaker Market Monitor"
     )
+
+    if (
+        "market_watchlist"
+        not in st.session_state
+    ):
+
+        if os.path.exists(
+            WATCHLIST_FILE
+        ):
+
+            try:
+
+                loaded = pd.read_csv(
+                    WATCHLIST_FILE
+                )
+
+                if "Status" not in loaded.columns:
+                    loaded["Status"] = "Watching"
+
+                if "Actual Result" not in loaded.columns:
+                    loaded["Actual Result"] = ""
+
+                st.session_state[
+                    "market_watchlist"
+                ] = (
+                    loaded
+                    .fillna("")
+                    .to_dict(
+                        "records"
+                    )
+                )
+
+            except Exception:
+
+                st.session_state[
+                    "market_watchlist"
+                ] = []
+
+        else:
+
+            st.session_state[
+                "market_watchlist"
+            ] = []
 
     col1, col2 = st.columns(2)
 
@@ -1339,7 +1958,9 @@ with tab3:
         match_name = st.text_input(
             "Match",
             "",
-            placeholder="Chelsea vs Brentford",
+            placeholder=(
+                "e.g. Chelsea vs Brentford"
+            ),
             key="monitor_match"
         )
 
@@ -1361,7 +1982,12 @@ with tab3:
 
         monitor_market = st.selectbox(
             "Market",
-            BASE_MARKET_COLUMNS,
+            [
+                "Shots",
+                "Shots on Target",
+                "Corners",
+                "Goals"
+            ],
             key="monitor_market"
         )
 
@@ -1369,7 +1995,10 @@ with tab3:
 
         monitor_direction = st.selectbox(
             "Direction",
-            ["Over", "Under"],
+            [
+                "Over",
+                "Under"
+            ],
             key="monitor_direction"
         )
 
@@ -1393,7 +2022,11 @@ with tab3:
 
         monitor_sample = st.selectbox(
             "Historical sample",
-            [5, 10, 15],
+            [
+                5,
+                10,
+                15
+            ],
             index=1,
             key="monitor_sample"
         )
@@ -1412,7 +2045,11 @@ with tab3:
 
         monitor_venue = st.selectbox(
             "Venue",
-            ["All", "Home", "Away"],
+            [
+                "All",
+                "Home",
+                "Away"
+            ],
             key="monitor_venue"
         )
 
@@ -1422,12 +2059,12 @@ with tab3:
     ):
 
         monitor_df = filtered_team_matches(
-            data,
-            monitor_team,
-            monitor_season,
-            monitor_competition,
-            monitor_venue,
-            monitor_sample
+            data=data,
+            team=monitor_team,
+            season=monitor_season,
+            competition=monitor_competition,
+            venue=monitor_venue,
+            sample=monitor_sample
         )
 
         analysis = analyse_market(
@@ -1437,14 +2074,62 @@ with tab3:
             monitor_line
         )
 
-        rate = analysis["hit_rate"]
-        breakeven = 1 / monitor_odds
+        rate = analysis[
+            "hit_rate"
+        ]
+
+        breakeven = (
+            1 / monitor_odds
+        )
+
+        if rate is not None:
+
+            historical_hit_rate = (
+                rate * 100
+            )
+
+            break_even_rate = (
+                breakeven * 100
+            )
+
+            edge = (
+                historical_hit_rate
+                -
+                break_even_rate
+            )
+
+            historical_vs_breakeven = (
+                "Above"
+                if rate >= breakeven
+                else "Below"
+            )
+
+            edge_display = (
+                f"{edge:+.1f} pp"
+            )
+
+            historical_display = (
+                f"{historical_hit_rate:.1f}%"
+            )
+
+        else:
+
+            historical_display = "—"
+            edge_display = "—"
+            historical_vs_breakeven = "—"
+            break_even_rate = (
+                breakeven * 100
+            )
 
         entry = {
             "Bookmaker": bookmaker,
             "Match": match_name,
-            "Match Date": str(match_date),
-            "Capture Time": str(capture_time),
+            "Match Date": str(
+                match_date
+            ),
+            "Capture Time": str(
+                capture_time
+            ),
             "Team": monitor_team,
             "Season": monitor_season,
             "Competition": monitor_competition,
@@ -1453,37 +2138,26 @@ with tab3:
             "Direction": monitor_direction,
             "Line": monitor_line,
             "Odds": monitor_odds,
-            "Historical Hit Rate": (
-                fmt_pct(rate)
-            ),
+            "Historical Hit Rate": historical_display,
             "Break-even": (
-                f"{breakeven * 100:.1f}%"
+                f"{break_even_rate:.1f}%"
             ),
-            "Edge vs Break-even": (
-                f"{(rate - breakeven) * 100:+.1f} pp"
-                if rate is not None
-                else "—"
-            ),
+            "Edge vs Break-even": edge_display,
             "Historical vs Break-even": (
-                "Above"
-                if rate is not None
-                and rate >= breakeven
-                else (
-                    "Below"
-                    if rate is not None
-                    else "—"
-                )
+                historical_vs_breakeven
             ),
             "Status": "Watching",
             "Actual Result": ""
         }
 
-        st.session_state.market_watchlist.append(
-            entry
-        )
+        st.session_state[
+            "market_watchlist"
+        ].append(entry)
 
         pd.DataFrame(
-            st.session_state.market_watchlist
+            st.session_state[
+                "market_watchlist"
+            ]
         ).to_csv(
             WATCHLIST_FILE,
             index=False
@@ -1495,10 +2169,17 @@ with tab3:
 
     st.divider()
 
-    if st.session_state.market_watchlist:
+    st.subheader(
+        "Tracked Markets"
+    )
 
-        # Automatic settlement
-        for item in st.session_state.market_watchlist:
+    if st.session_state[
+        "market_watchlist"
+    ]:
+
+        for item in st.session_state[
+            "market_watchlist"
+        ]:
 
             actual_text = str(
                 item.get(
@@ -1529,15 +2210,13 @@ with tab3:
                     ] == "Over":
 
                         won_result = (
-                            actual
-                            > market_line
+                            actual > market_line
                         )
 
                     else:
 
                         won_result = (
-                            actual
-                            < market_line
+                            actual < market_line
                         )
 
                     item["Status"] = (
@@ -1551,17 +2230,22 @@ with tab3:
                     TypeError,
                     KeyError
                 ):
+
                     pass
 
         pd.DataFrame(
-            st.session_state.market_watchlist
+            st.session_state[
+                "market_watchlist"
+            ]
         ).to_csv(
             WATCHLIST_FILE,
             index=False
         )
 
         watchlist_df = pd.DataFrame(
-            st.session_state.market_watchlist
+            st.session_state[
+                "market_watchlist"
+            ]
         ).fillna("")
 
         total = len(
@@ -1571,33 +2255,43 @@ with tab3:
         watching = (
             watchlist_df[
                 "Status"
-            ].eq("Watching").sum()
+            ]
+            .eq("Watching")
+            .sum()
         )
 
         won = (
             watchlist_df[
                 "Status"
-            ].eq("Won").sum()
+            ]
+            .eq("Won")
+            .sum()
         )
 
         lost = (
             watchlist_df[
                 "Status"
-            ].eq("Lost").sum()
+            ]
+            .eq("Lost")
+            .sum()
         )
 
         void = (
             watchlist_df[
                 "Status"
-            ].eq("Void").sum()
+            ]
+            .eq("Void")
+            .sum()
         )
 
-        settled = won + lost
+        settled = (
+            won + lost
+        )
 
-        tracked_hit_rate = (
-            won / settled
+        tracked_hit_rate_display = (
+            f"{won / settled * 100:.1f}%"
             if settled > 0
-            else None
+            else "—"
         )
 
         s1, s2, s3, s4, s5 = st.columns(5)
@@ -1624,13 +2318,219 @@ with tab3:
 
         s5.metric(
             "Tracked Hit Rate",
-            fmt_pct(
-                tracked_hit_rate
-            )
+            tracked_hit_rate_display
         )
 
         st.caption(
             f"Void markets: {void}"
+        )
+
+        st.subheader(
+            "Edit / Settle Markets"
+        )
+
+        status_options = [
+            "Watching",
+            "Won",
+            "Lost",
+            "Void"
+        ]
+
+        for i in range(
+            len(watchlist_df)
+        ):
+
+            row = watchlist_df.iloc[
+                i
+            ]
+
+            label = (
+                f"{i + 1}. "
+                f"{row.get('Match', '')} — "
+                f"{row.get('Market', '')} "
+                f"{row.get('Direction', '')} "
+                f"{row.get('Line', '')}"
+            )
+
+            with st.expander(
+                label
+            ):
+
+                e1, e2 = st.columns(2)
+
+                with e1:
+
+                    try:
+
+                        current_odds = float(
+                            row.get(
+                                "Odds",
+                                1.30
+                            )
+                        )
+
+                    except (
+                        ValueError,
+                        TypeError
+                    ):
+
+                        current_odds = 1.30
+
+                    try:
+
+                        current_line = float(
+                            row.get(
+                                "Line",
+                                3.5
+                            )
+                        )
+
+                    except (
+                        ValueError,
+                        TypeError
+                    ):
+
+                        current_line = 3.5
+
+                    new_odds = st.number_input(
+                        "Odds",
+                        min_value=1.01,
+                        max_value=100.0,
+                        value=current_odds,
+                        step=0.01,
+                        key=f"edit_odds_{i}"
+                    )
+
+                    new_line = st.number_input(
+                        "Line",
+                        min_value=0.0,
+                        max_value=30.0,
+                        value=current_line,
+                        step=0.5,
+                        key=f"edit_line_{i}"
+                    )
+
+                with e2:
+
+                    current_status = row.get(
+                        "Status",
+                        "Watching"
+                    )
+
+                    if current_status not in status_options:
+
+                        current_status = (
+                            "Watching"
+                        )
+
+                    new_status = st.selectbox(
+                        "Status",
+                        status_options,
+                        index=status_options.index(
+                            current_status
+                        ),
+                        key=f"edit_status_{i}"
+                    )
+
+                    actual_text = str(
+                        row.get(
+                            "Actual Result",
+                            ""
+                        )
+                    ).strip()
+
+                    try:
+
+                        current_actual = (
+                            float(
+                                actual_text
+                            )
+                            if actual_text != ""
+                            else 0.0
+                        )
+
+                    except (
+                        ValueError,
+                        TypeError
+                    ):
+
+                        current_actual = 0.0
+
+                    actual_value = st.number_input(
+                        "Actual Result",
+                        min_value=0.0,
+                        max_value=100.0,
+                        value=current_actual,
+                        step=0.5,
+                        key=f"actual_result_{i}"
+                    )
+
+                if st.button(
+                    "Save Changes",
+                    key=f"save_market_{i}"
+                ):
+
+                    st.session_state[
+                        "market_watchlist"
+                    ][i]["Odds"] = new_odds
+
+                    st.session_state[
+                        "market_watchlist"
+                    ][i]["Line"] = new_line
+
+                    st.session_state[
+                        "market_watchlist"
+                    ][i]["Status"] = new_status
+
+                    st.session_state[
+                        "market_watchlist"
+                    ][i]["Actual Result"] = (
+                        actual_value
+                    )
+
+                    pd.DataFrame(
+                        st.session_state[
+                            "market_watchlist"
+                        ]
+                    ).to_csv(
+                        WATCHLIST_FILE,
+                        index=False
+                    )
+
+                    st.success(
+                        "Market updated."
+                    )
+
+                    st.rerun()
+
+                if st.button(
+                    "Delete Market",
+                    key=f"delete_market_{i}"
+                ):
+
+                    st.session_state[
+                        "market_watchlist"
+                    ].pop(i)
+
+                    pd.DataFrame(
+                        st.session_state[
+                            "market_watchlist"
+                        ]
+                    ).to_csv(
+                        WATCHLIST_FILE,
+                        index=False
+                    )
+
+                    st.success(
+                        "Market deleted."
+                    )
+
+                    st.rerun()
+
+        watchlist_df = pd.DataFrame(
+            st.session_state[
+                "market_watchlist"
+            ]
         )
 
         st.dataframe(
@@ -1641,7 +2541,9 @@ with tab3:
 
         csv_watchlist = (
             watchlist_df
-            .to_csv(index=False)
+            .to_csv(
+                index=False
+            )
             .encode("utf-8")
         )
 
@@ -1658,11 +2560,14 @@ with tab3:
             key="clear_monitor"
         ):
 
-            st.session_state.market_watchlist = []
+            st.session_state[
+                "market_watchlist"
+            ] = []
 
             if os.path.exists(
                 WATCHLIST_FILE
             ):
+
                 os.remove(
                     WATCHLIST_FILE
                 )
@@ -1683,16 +2588,12 @@ with tab3:
 with tab4:
 
     st.subheader(
-        "📥 CSV Format"
+        "CSV Format"
     )
 
     st.write(
-        "The primary dataset is "
-        f"`{MASTER_FILE}`."
-    )
-
-    st.write(
-        "Required columns:"
+        "Your CSV should contain one row per match "
+        "with these columns:"
     )
 
     st.code(
@@ -1702,9 +2603,25 @@ with tab4:
     )
 
     st.dataframe(
-        data.head(10),
+        demo.head(5),
         use_container_width=True,
         hide_index=True
+    )
+
+    csv_bytes = (
+        demo
+        .to_csv(
+            index=False
+        )
+        .encode("utf-8")
+    )
+
+    st.download_button(
+        "Download demo CSV",
+        csv_bytes,
+        "football_demo.csv",
+        "text/csv",
+        key="download_demo_csv"
     )
 
 
@@ -1719,11 +2636,13 @@ with tab5:
     )
 
     st.caption(
-        "Compare two teams using historical "
-        "home/away and match-by-match data."
+        "Research a specific fixture by comparing both teams "
+        "using historical match-by-match data."
     )
 
-    teams = team_list(data)
+    teams = team_list(
+        data
+    )
 
     r1, r2 = st.columns(2)
 
@@ -1737,16 +2656,23 @@ with tab5:
 
     with r2:
 
-        away_options = [
-            x for x in teams
-            if x != home_team
+        away_team_options = [
+            team
+            for team in teams
+            if team != home_team
         ]
 
         away_team = st.selectbox(
             "Away Team",
-            away_options,
+            away_team_options,
             key="research_away_team"
         )
+
+    st.divider()
+
+    st.subheader(
+        "Match Context"
+    )
 
     c1, c2, c3 = st.columns(3)
 
@@ -1770,84 +2696,152 @@ with tab5:
 
         research_sample = st.selectbox(
             "Recent matches",
-            [5, 10, 15],
+            [
+                5,
+                10,
+                15
+            ],
             index=1,
             key="research_sample"
         )
 
     home_matches = filtered_team_matches(
-        data,
-        home_team,
-        research_season,
-        research_competition,
-        "Home",
-        research_sample
+        data=data,
+        team=home_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Home",
+        sample=research_sample
     )
 
     away_matches = filtered_team_matches(
-        data,
-        away_team,
-        research_season,
-        research_competition,
-        "Away",
-        research_sample
+        data=data,
+        team=away_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Away",
+        sample=research_sample
     )
 
     home_all = filtered_team_matches(
-        data,
-        home_team,
-        research_season,
-        research_competition,
-        "All",
-        research_sample
+        data=data,
+        team=home_team,
+        season=research_season,
+        competition=research_competition,
+        venue="All",
+        sample=research_sample
     )
 
     away_all = filtered_team_matches(
-        data,
-        away_team,
-        research_season,
-        research_competition,
-        "All",
-        research_sample
+        data=data,
+        team=away_team,
+        season=research_season,
+        competition=research_competition,
+        venue="All",
+        sample=research_sample
     )
+
+    if len(home_matches) < 5:
+
+        st.warning(
+            f"{home_team}: only "
+            f"{len(home_matches)} home matches "
+            "are available for these filters."
+        )
+
+    if len(away_matches) < 5:
+
+        st.warning(
+            f"{away_team}: only "
+            f"{len(away_matches)} away matches "
+            "are available for these filters."
+        )
 
     st.divider()
 
     st.subheader(
-        "Home vs Away Comparison"
+        "Home vs Away Team Comparison"
     )
 
-    hs = match_team_summary(
+    home_summary = match_team_summary(
         home_matches
     )
 
-    aws = match_team_summary(
+    away_summary = match_team_summary(
         away_matches
     )
 
-    comparison_rows = []
-
-    for metric, key in [
-        ("Matches", "Matches"),
-        ("Avg Shots", "Shots"),
-        ("Avg SOT", "SOT"),
-        ("Avg Corners", "Corners"),
-        ("Avg Goals", "Goals")
-    ]:
-
-        comparison_rows.append({
-            "Metric": metric,
+    comparison_rows = [
+        {
+            "Metric": "Matches",
+            "Home Team": home_summary[
+                "Matches"
+            ],
+            "Away Team": away_summary[
+                "Matches"
+            ]
+        },
+        {
+            "Metric": "Avg Shots",
             "Home Team": (
-                hs[key]
-                if key == "Matches"
-                else fmt_num(hs[key])
+                f"{home_summary['Shots']:.2f}"
+                if home_summary["Shots"]
+                is not None
+                else "—"
             ),
             "Away Team": (
-                aws[key]
-                if key == "Matches"
-                else fmt_num(aws[key])
+                f"{away_summary['Shots']:.2f}"
+                if away_summary["Shots"]
+                is not None
+                else "—"
             )
-        })
+        },
+        {
+            "Metric": "Avg Shots on Target",
+            "Home Team": (
+                f"{home_summary['SOT']:.2f}"
+                if home_summary["SOT"]
+                is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['SOT']:.2f}"
+                if away_summary["SOT"]
+                is not None
+                else "—"
+            )
+        },
+        {
+            "Metric": "Avg Corners",
+            "Home Team": (
+                f"{home_summary['Corners']:.2f}"
+                if home_summary["Corners"]
+                is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['Corners']:.2f}"
+                if away_summary["Corners"]
+                is not None
+                else "—"
+            )
+        },
+        {
+            "Metric": "Avg Goals",
+            "Home Team": (
+                f"{home_summary['Goals']:.2f}"
+                if home_summary["Goals"]
+                is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['Goals']:.2f}"
+                if away_summary["Goals"]
+                is not None
+                else "—"
+            )
+        }
+    ]
 
     st.dataframe(
         pd.DataFrame(
@@ -1863,9 +2857,143 @@ with tab5:
         "Attack vs Defence"
     )
 
+    st.caption(
+        "Home attacking production is compared with away "
+        "defensive concession, and vice versa."
+    )
+
+    home_attack = {
+        "Shots": average_value(
+            home_matches,
+            "team_shots"
+        ),
+        "Shots on Target": average_value(
+            home_matches,
+            "team_sot"
+        ),
+        "Corners": average_value(
+            home_matches,
+            "team_corners"
+        ),
+        "Goals": average_value(
+            home_matches,
+            "team_goals"
+        )
+    }
+
+    away_defence = {
+        "Shots": average_value(
+            away_matches,
+            "opp_shots"
+        ),
+        "Shots on Target": average_value(
+            away_matches,
+            "opp_sot"
+        ),
+        "Corners": average_value(
+            away_matches,
+            "opp_corners"
+        ),
+        "Goals": average_value(
+            away_matches,
+            "opp_goals"
+        )
+    }
+
+    away_attack = {
+        "Shots": average_value(
+            away_matches,
+            "team_shots"
+        ),
+        "Shots on Target": average_value(
+            away_matches,
+            "team_sot"
+        ),
+        "Corners": average_value(
+            away_matches,
+            "team_corners"
+        ),
+        "Goals": average_value(
+            away_matches,
+            "team_goals"
+        )
+    }
+
+    home_defence = {
+        "Shots": average_value(
+            home_matches,
+            "opp_shots"
+        ),
+        "Shots on Target": average_value(
+            home_matches,
+            "opp_sot"
+        ),
+        "Corners": average_value(
+            home_matches,
+            "opp_corners"
+        ),
+        "Goals": average_value(
+            home_matches,
+            "opp_goals"
+        )
+    }
+
     attack_defence_rows = []
 
-    pairs = [
+    for metric in [
+        "Shots",
+        "Shots on Target",
+        "Corners",
+        "Goals"
+    ]:
+
+        attack_defence_rows.append(
+            {
+                "Metric": metric,
+                "Home Attack": (
+                    f"{home_attack[metric]:.2f}"
+                    if home_attack[metric]
+                    is not None
+                    else "—"
+                ),
+                "Away Defence Conceded": (
+                    f"{away_defence[metric]:.2f}"
+                    if away_defence[metric]
+                    is not None
+                    else "—"
+                ),
+                "Away Attack": (
+                    f"{away_attack[metric]:.2f}"
+                    if away_attack[metric]
+                    is not None
+                    else "—"
+                ),
+                "Home Defence Conceded": (
+                    f"{home_defence[metric]:.2f}"
+                    if home_defence[metric]
+                    is not None
+                    else "—"
+                )
+            }
+        )
+
+    st.dataframe(
+        pd.DataFrame(
+            attack_defence_rows
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.divider()
+
+    st.subheader(
+        "Contextual Home / Away Samples"
+    )
+
+    context_rows = []
+
+    context_metrics = [
         (
             "Shots",
             "team_shots",
@@ -1888,39 +3016,57 @@ with tab5:
         )
     ]
 
-    for label, team_col, opp_col in pairs:
+    for label, team_col, opp_col in context_metrics:
 
-        attack_defence_rows.append({
-            "Metric": label,
-            "Home Attack": fmt_num(
-                average_value(
-                    home_matches,
-                    team_col
+        home_produced = average_value(
+            home_matches,
+            team_col
+        )
+
+        home_conceded = average_value(
+            home_matches,
+            opp_col
+        )
+
+        away_produced = average_value(
+            away_matches,
+            team_col
+        )
+
+        away_conceded = average_value(
+            away_matches,
+            opp_col
+        )
+
+        context_rows.append(
+            {
+                "Metric": label,
+                f"{home_team} Home Produced": (
+                    f"{home_produced:.2f}"
+                    if home_produced is not None
+                    else "—"
+                ),
+                f"{home_team} Home Conceded": (
+                    f"{home_conceded:.2f}"
+                    if home_conceded is not None
+                    else "—"
+                ),
+                f"{away_team} Away Produced": (
+                    f"{away_produced:.2f}"
+                    if away_produced is not None
+                    else "—"
+                ),
+                f"{away_team} Away Conceded": (
+                    f"{away_conceded:.2f}"
+                    if away_conceded is not None
+                    else "—"
                 )
-            ),
-            "Away Defence Conceded": fmt_num(
-                average_value(
-                    away_matches,
-                    opp_col
-                )
-            ),
-            "Away Attack": fmt_num(
-                average_value(
-                    away_matches,
-                    team_col
-                )
-            ),
-            "Home Defence Conceded": fmt_num(
-                average_value(
-                    home_matches,
-                    opp_col
-                )
-            )
-        })
+            }
+        )
 
     st.dataframe(
         pd.DataFrame(
-            attack_defence_rows
+            context_rows
         ),
         use_container_width=True,
         hide_index=True
@@ -1929,56 +3075,140 @@ with tab5:
     st.divider()
 
     st.subheader(
-        "Recent Home / Away Form"
+        f"{home_team} — Recent Home Form"
     )
+
+    if not home_matches.empty:
+
+        home_display = home_matches[
+            [
+                "date",
+                "home_team",
+                "away_team",
+                "team_goals",
+                "opp_goals",
+                "team_shots",
+                "team_sot",
+                "team_corners"
+            ]
+        ].copy()
+
+        st.dataframe(
+            home_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info(
+            f"No home matches found "
+            f"for {home_team}."
+        )
+
+    st.subheader(
+        f"{away_team} — Recent Away Form"
+    )
+
+    if not away_matches.empty:
+
+        away_display = away_matches[
+            [
+                "date",
+                "home_team",
+                "away_team",
+                "team_goals",
+                "opp_goals",
+                "team_shots",
+                "team_sot",
+                "team_corners"
+            ]
+        ].copy()
+
+        st.dataframe(
+            away_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+
+        st.info(
+            f"No away matches found "
+            f"for {away_team}."
+        )
+
+    st.divider()
+
+    st.subheader(
+        "Overall Recent Form"
+    )
+
+    form_columns = [
+        "date",
+        "home_team",
+        "away_team",
+        "venue",
+        "team_goals",
+        "opp_goals",
+        "team_shots",
+        "team_sot",
+        "team_corners"
+    ]
 
     left, right = st.columns(2)
 
     with left:
 
         st.caption(
-            f"{home_team} — Home"
+            home_team
         )
 
-        st.dataframe(
-            home_matches[
-                [
-                    "date",
-                    "home_team",
-                    "away_team",
-                    "team_goals",
-                    "opp_goals",
-                    "team_shots",
-                    "team_sot",
-                    "team_corners"
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True
-        )
+        if not home_all.empty:
+
+            st.dataframe(
+                home_all[
+                    [
+                        c
+                        for c in form_columns
+                        if c in home_all.columns
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+
+        else:
+
+            st.info(
+                "No data available."
+            )
 
     with right:
 
         st.caption(
-            f"{away_team} — Away"
+            away_team
         )
 
-        st.dataframe(
-            away_matches[
-                [
-                    "date",
-                    "home_team",
-                    "away_team",
-                    "team_goals",
-                    "opp_goals",
-                    "team_shots",
-                    "team_sot",
-                    "team_corners"
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True
-        )
+        if not away_all.empty:
+
+            st.dataframe(
+                away_all[
+                    [
+                        c
+                        for c in form_columns
+                        if c in away_all.columns
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+
+        else:
+
+            st.info(
+                "No data available."
+            )
 
     st.divider()
 
@@ -1992,7 +3222,12 @@ with tab5:
 
         research_market = st.selectbox(
             "Market",
-            BASE_MARKET_COLUMNS,
+            [
+                "Shots",
+                "Shots on Target",
+                "Corners",
+                "Goals"
+            ],
             key="research_market"
         )
 
@@ -2000,7 +3235,10 @@ with tab5:
 
         research_direction = st.selectbox(
             "Direction",
-            ["Over", "Under"],
+            [
+                "Over",
+                "Under"
+            ],
             key="research_direction"
         )
 
@@ -2015,16 +3253,158 @@ with tab5:
             key="research_line"
         )
 
+    market_comparison = build_market_comparison(
+        home_matches,
+        away_matches,
+        research_market,
+        research_direction,
+        research_line
+    )
+
     st.dataframe(
-        build_market_comparison(
-            home_matches,
-            away_matches,
-            research_market,
-            research_direction,
-            research_line
-        ),
+        market_comparison,
         use_container_width=True,
         hide_index=True
+    )
+
+    st.subheader(
+        "Opponent Context"
+    )
+
+    opponent_column = {
+        "Shots": "opp_shots",
+        "Shots on Target": "opp_sot",
+        "Corners": "opp_corners",
+        "Goals": "opp_goals"
+    }[
+        research_market
+    ]
+
+    home_market_analysis = analyse_market(
+        home_matches,
+        research_market,
+        research_direction,
+        research_line
+    )
+
+    away_market_analysis = analyse_market(
+        away_matches,
+        research_market,
+        research_direction,
+        research_line
+    )
+
+    away_opponent_values = pd.to_numeric(
+        away_matches[
+            opponent_column
+        ],
+        errors="coerce"
+    ).dropna()
+
+    home_opponent_values = pd.to_numeric(
+        home_matches[
+            opponent_column
+        ],
+        errors="coerce"
+    ).dropna()
+
+    if research_direction == "Over":
+
+        away_defence_context_hits = (
+            away_opponent_values
+            < research_line
+        ).sum()
+
+        home_defence_context_hits = (
+            home_opponent_values
+            < research_line
+        ).sum()
+
+    else:
+
+        away_defence_context_hits = (
+            away_opponent_values
+            > research_line
+        ).sum()
+
+        home_defence_context_hits = (
+            home_opponent_values
+            > research_line
+        ).sum()
+
+    away_defence_context_rate = (
+        away_defence_context_hits
+        /
+        len(
+            away_opponent_values
+        )
+        if len(
+            away_opponent_values
+        ) > 0
+        else None
+    )
+
+    home_defence_context_rate = (
+        home_defence_context_hits
+        /
+        len(
+            home_opponent_values
+        )
+        if len(
+            home_opponent_values
+        ) > 0
+        else None
+    )
+
+    opponent_context_df = pd.DataFrame(
+        [
+            {
+                "Team": home_team,
+                "Market Hit Rate": fmt_pct(
+                    home_market_analysis[
+                        "hit_rate"
+                    ]
+                ),
+                "Team Sample": home_market_analysis[
+                    "sample_size"
+                ],
+                "Opponent Defensive Context": fmt_pct(
+                    away_defence_context_rate
+                ),
+                "Opponent Sample": len(
+                    away_opponent_values
+                )
+            },
+            {
+                "Team": away_team,
+                "Market Hit Rate": fmt_pct(
+                    away_market_analysis[
+                        "hit_rate"
+                    ]
+                ),
+                "Team Sample": away_market_analysis[
+                    "sample_size"
+                ],
+                "Opponent Defensive Context": fmt_pct(
+                    home_defence_context_rate
+                ),
+                "Opponent Sample": len(
+                    home_opponent_values
+                )
+            }
+        ]
+    )
+
+    st.dataframe(
+        opponent_context_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.caption(
+        "Opponent Defensive Context is descriptive historical "
+        "evidence from the relevant home/away sample. "
+        "It is not a probability forecast."
     )
 
     st.divider()
@@ -2043,29 +3423,148 @@ with tab5:
 
         h2h = h2h[
             h2h["season"]
-            == research_season
+            ==
+            research_season
         ]
 
     if research_competition != "All":
 
         h2h = h2h[
             h2h["competition"]
-            == research_competition
+            ==
+            research_competition
         ]
 
     if not h2h.empty:
 
+        h2h_display_columns = [
+            "date",
+            "season",
+            "competition",
+            "home_team",
+            "away_team",
+            "home_goals",
+            "away_goals",
+            "home_shots",
+            "away_shots",
+            "home_sot",
+            "away_sot",
+            "home_corners",
+            "away_corners"
+        ]
+
+        available_h2h_columns = [
+            c
+            for c in h2h_display_columns
+            if c in h2h.columns
+        ]
+
         st.dataframe(
-            h2h.head(10),
+            h2h[
+                available_h2h_columns
+            ].head(10),
             use_container_width=True,
             hide_index=True
+        )
+
+        st.caption(
+            f"{len(h2h)} historical meeting(s) found "
+            "for the selected filters."
         )
 
     else:
 
         st.info(
-            "No previous meetings found."
+            "No previous meetings found "
+            "for the selected filters."
         )
+
+    st.divider()
+
+    st.subheader(
+        "Match Research Summary"
+    )
+
+    summary_rows = [
+        {
+            "Area": "Home Attack — Shots",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_attack['Shots']:.2f}"
+                if home_attack["Shots"]
+                is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Home Attack — SOT",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_attack['Shots on Target']:.2f}"
+                if home_attack[
+                    "Shots on Target"
+                ] is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Defence — SOT Conceded",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_defence['Shots on Target']:.2f}"
+                if away_defence[
+                    "Shots on Target"
+                ] is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Attack — Shots",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_attack['Shots']:.2f}"
+                if away_attack["Shots"]
+                is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Attack — SOT",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_attack['Shots on Target']:.2f}"
+                if away_attack[
+                    "Shots on Target"
+                ] is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Home Defence — SOT Conceded",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_defence['Shots on Target']:.2f}"
+                if home_defence[
+                    "Shots on Target"
+                ] is not None
+                else "—"
+            )
+        }
+    ]
+
+    st.dataframe(
+        pd.DataFrame(
+            summary_rows
+        ),
+        use_container_width=True,
+        hide_index=True
+    )
 
     st.divider()
 
@@ -2074,1714 +3573,333 @@ with tab5:
     )
 
     st.text_area(
-        "Notes",
+        "Notes for this fixture",
         placeholder=(
-            "Lineups, injuries, tactical observations, "
-            "team news, referee information, etc."
+            "Record lineup information, injuries, referee notes, "
+            "tactical observations, team news, market observations, "
+            "or anything else relevant to your research."
         ),
-        height=160,
+        height=180,
         key="match_research_notes"
+    )
+
+    st.caption(
+        "This tab is a research workspace. Historical data describes "
+        "previous matches and does not establish the probability "
+        "of the next match."
     )
 
 
 # ============================================================
-# STEP 91
-# DATA QUALITY DASHBOARD
+# TAB 6 — DATA SOURCE HEALTH
 # ============================================================
 
 with tab6:
 
     st.subheader(
-        "🧪 Step 91 — Data Quality Dashboard"
+        "🔌 Data Source Integration Health"
     )
 
     st.caption(
-        "Checks the structural quality of the active dataset "
-        "before using it for research."
+        "This panel performs live runtime checks. "
+        "A package being installed does not automatically mean "
+        "that its data can be retrieved successfully."
     )
-
-    total_rows = len(data)
-
-    duplicate_count = int(
-        data.duplicated().sum()
-    )
-
-    missing_by_column = (
-        data.isna()
-        .sum()
-        .sort_values(
-            ascending=False
-        )
-    )
-
-    invalid_dates = int(
-        data["date"].isna().sum()
-    )
-
-    blank_home = int(
-        data["home_team"]
-        .astype(str)
-        .str.strip()
-        .eq("")
-        .sum()
-    )
-
-    blank_away = int(
-        data["away_team"]
-        .astype(str)
-        .str.strip()
-        .eq("")
-        .sum()
-    )
-
-    q1, q2, q3, q4 = st.columns(4)
-
-    q1.metric(
-        "Total Matches",
-        f"{total_rows:,}"
-    )
-
-    q2.metric(
-        "Duplicate Rows",
-        f"{duplicate_count:,}"
-    )
-
-    q3.metric(
-        "Invalid Dates",
-        f"{invalid_dates:,}"
-    )
-
-    q4.metric(
-        "Missing Cells",
-        f"{int(data.isna().sum().sum()):,}"
-    )
-
-    st.divider()
-
-    st.subheader(
-        "Column Completeness"
-    )
-
-    quality_df = pd.DataFrame({
-        "Column": data.columns,
-        "Missing": [
-            int(data[c].isna().sum())
-            for c in data.columns
-        ],
-        "Missing %": [
-            f"{data[c].isna().mean() * 100:.2f}%"
-            for c in data.columns
-        ],
-        "Unique Values": [
-            data[c].nunique(dropna=True)
-            for c in data.columns
-        ]
-    })
-
-    st.dataframe(
-        quality_df,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.divider()
-
-    st.subheader(
-        "Numeric Range Checks"
-    )
-
-    range_rows = []
-
-    numeric_cols = [
-        "home_goals",
-        "away_goals",
-        "home_shots",
-        "away_shots",
-        "home_sot",
-        "away_sot",
-        "home_corners",
-        "away_corners"
-    ]
-
-    for c in numeric_cols:
-
-        if c in data.columns:
-
-            s = pd.to_numeric(
-                data[c],
-                errors="coerce"
-            ).dropna()
-
-            range_rows.append({
-                "Column": c,
-                "Minimum": (
-                    s.min()
-                    if not s.empty
-                    else None
-                ),
-                "Maximum": (
-                    s.max()
-                    if not s.empty
-                    else None
-                ),
-                "Average": (
-                    s.mean()
-                    if not s.empty
-                    else None
-                ),
-                "Missing": int(
-                    data[c].isna().sum()
-                )
-            })
-
-    st.dataframe(
-        pd.DataFrame(
-            range_rows
-        ),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    if duplicate_count == 0:
-
-        st.success(
-            "No exact duplicate rows detected."
-        )
-
-    else:
-
-        st.warning(
-            f"{duplicate_count:,} exact duplicate rows detected."
-        )
-
-
-# ============================================================
-# STEP 92
-# TEAM DATA COVERAGE
-# ============================================================
-
-with tab7:
-
-    st.subheader(
-        "📈 Step 92 — Team Data Coverage"
-    )
-
-    st.caption(
-        "Shows how much historical data is available "
-        "for each team."
-    )
-
-    all_teams = team_list(data)
-
-    coverage_rows = []
-
-    for t in all_teams:
-
-        tm = team_matches(
-            data,
-            t
-        )
-
-        home_count = int(
-            (
-                tm["venue"]
-                == "Home"
-            ).sum()
-        )
-
-        away_count = int(
-            (
-                tm["venue"]
-                == "Away"
-            ).sum()
-        )
-
-        dates = pd.to_datetime(
-            tm["date"],
-            errors="coerce"
-        ).dropna()
-
-        coverage_rows.append({
-            "Team": t,
-            "Total Matches": len(tm),
-            "Home Matches": home_count,
-            "Away Matches": away_count,
-            "Competitions": tm[
-                "competition"
-            ].nunique(),
-            "Seasons": tm[
-                "season"
-            ].nunique(),
-            "First Match": (
-                dates.min()
-                if not dates.empty
-                else None
-            ),
-            "Latest Match": (
-                dates.max()
-                if not dates.empty
-                else None
-            )
-        })
-
-    coverage_df = pd.DataFrame(
-        coverage_rows
-    ).sort_values(
-        "Total Matches",
-        ascending=False
-    )
-
-    st.dataframe(
-        coverage_df,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.download_button(
-        "Download Team Coverage CSV",
-        coverage_df.to_csv(
-            index=False
-        ).encode("utf-8"),
-        "team_data_coverage.csv",
-        "text/csv"
-    )
-
-
-# ============================================================
-# STEP 93
-# RECENT FORM ENGINE
-# ============================================================
-
-with tab8:
-
-    st.subheader(
-        "📋 Step 93 — Recent Form Engine"
-    )
-
-    form_team = st.selectbox(
-        "Team",
-        team_list(data),
-        key="form_team"
-    )
-
-    form_season = st.selectbox(
-        "Season",
-        season_list(data),
-        key="form_season"
-    )
-
-    form_competition = st.selectbox(
-        "Competition",
-        competition_list(data),
-        key="form_competition"
-    )
-
-    form_sample = st.selectbox(
-        "Sample",
-        [5, 10, 15],
-        index=1,
-        key="form_sample"
-    )
-
-    form_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="form_venue"
-    )
-
-    form_df = filtered_team_matches(
-        data,
-        form_team,
-        form_season,
-        form_competition,
-        form_venue,
-        form_sample
-    )
-
-    if not form_df.empty:
-
-        form_display = form_df[
-            [
-                "date",
-                "home_team",
-                "away_team",
-                "venue",
-                "team_goals",
-                "opp_goals",
-                "team_shots",
-                "opp_shots",
-                "team_sot",
-                "opp_sot",
-                "team_corners",
-                "opp_corners"
-            ]
-        ].copy()
-
-        form_display["Result"] = np.select(
-            [
-                form_display[
-                    "team_goals"
-                ]
-                >
-                form_display[
-                    "opp_goals"
-                ],
-
-                form_display[
-                    "team_goals"
-                ]
-                <
-                form_display[
-                    "opp_goals"
-                ]
-            ],
-            [
-                "W",
-                "L"
-            ],
-            default="D"
-        )
-
-        st.dataframe(
-            form_display,
-            use_container_width=True,
-            hide_index=True
-        )
-
-        wins = int(
-            (form_display["Result"] == "W")
-            .sum()
-        )
-
-        draws = int(
-            (form_display["Result"] == "D")
-            .sum()
-        )
-
-        losses = int(
-            (form_display["Result"] == "L")
-            .sum()
-        )
-
-        f1, f2, f3, f4 = st.columns(4)
-
-        f1.metric(
-            "Matches",
-            len(form_display)
-        )
-
-        f2.metric(
-            "Wins",
-            wins
-        )
-
-        f3.metric(
-            "Draws",
-            draws
-        )
-
-        f4.metric(
-            "Losses",
-            losses
-        )
-
-    else:
-
-        st.info(
-            "No matches available."
-        )
-
-
-# ============================================================
-# STEP 94
-# MARKET CONSISTENCY ANALYSIS
-# ============================================================
-
-with tab9:
-
-    st.subheader(
-        "📊 Step 94 — Market Consistency Analysis"
-    )
-
-    consistency_team = st.selectbox(
-        "Team",
-        team_list(data),
-        key="consistency_team"
-    )
-
-    consistency_market = st.selectbox(
-        "Market",
-        BASE_MARKET_COLUMNS,
-        key="consistency_market"
-    )
-
-    consistency_direction = st.selectbox(
-        "Direction",
-        ["Over", "Under"],
-        key="consistency_direction"
-    )
-
-    consistency_line = st.number_input(
-        "Line",
-        min_value=0.0,
-        max_value=30.0,
-        value=3.5,
-        step=0.5,
-        key="consistency_line"
-    )
-
-    consistency_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="consistency_venue"
-    )
-
-    consistency_sample = st.selectbox(
-        "Sample",
-        [5, 10, 15],
-        index=2,
-        key="consistency_sample"
-    )
-
-    consistency_df = filtered_team_matches(
-        data,
-        consistency_team,
-        "All",
-        "All",
-        consistency_venue,
-        consistency_sample
-    )
-
-    column = MARKET_COLUMN_MAP[
-        consistency_market
-    ]
-
-    values = pd.to_numeric(
-        consistency_df[column],
-        errors="coerce"
-    ).dropna()
-
-    result = analyse_market(
-        consistency_df,
-        consistency_market,
-        consistency_direction,
-        consistency_line
-    )
-
-    if not values.empty:
-
-        if consistency_direction == "Over":
-            hits_series = values > consistency_line
-        else:
-            hits_series = values < consistency_line
-
-        consecutive_current = 0
-
-        for hit in hits_series.tolist():
-
-            if hit:
-                consecutive_current += 1
-            else:
-                break
-
-        consecutive_longest = 0
-        running = 0
-
-        for hit in hits_series.tolist():
-
-            if hit:
-                running += 1
-                consecutive_longest = max(
-                    consecutive_longest,
-                    running
-                )
-            else:
-                running = 0
-
-        c1, c2, c3, c4 = st.columns(4)
-
-        c1.metric(
-            "Hit Rate",
-            fmt_pct(
-                result["hit_rate"]
-            )
-        )
-
-        c2.metric(
-            "Current Consecutive Hits",
-            consecutive_current
-        )
-
-        c3.metric(
-            "Longest Hit Run",
-            consecutive_longest
-        )
-
-        c4.metric(
-            "Sample",
-            result["sample_size"]
-        )
-
-        consistency_stats = pd.DataFrame([
-            {
-                "Statistic": "Minimum",
-                "Value": values.min()
-            },
-            {
-                "Statistic": "Maximum",
-                "Value": values.max()
-            },
-            {
-                "Statistic": "Mean",
-                "Value": values.mean()
-            },
-            {
-                "Statistic": "Median",
-                "Value": values.median()
-            },
-            {
-                "Statistic": "Standard Deviation",
-                "Value": values.std()
-            }
-        ])
-
-        st.dataframe(
-            consistency_stats,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
-
-        st.info(
-            "No usable market data."
-        )
-
-
-# ============================================================
-# STEP 95
-# OPPONENT CONTEXT
-# ============================================================
-
-with tab10:
-
-    st.subheader(
-        "🧭 Step 95 — Opponent Strength / Context"
-    )
-
-    st.caption(
-        "This section uses historical opponent production "
-        "and concession context. It does not assign an "
-        "automatic strength rating."
-    )
-
-    context_team = st.selectbox(
-        "Team",
-        team_list(data),
-        key="context_team"
-    )
-
-    context_market = st.selectbox(
-        "Market",
-        BASE_MARKET_COLUMNS,
-        key="context_market"
-    )
-
-    context_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="context_venue"
-    )
-
-    context_sample = st.selectbox(
-        "Sample",
-        [5, 10, 15],
-        index=2,
-        key="context_sample"
-    )
-
-    context_df = filtered_team_matches(
-        data,
-        context_team,
-        "All",
-        "All",
-        context_venue,
-        context_sample
-    )
-
-    metric_map = {
-        "Shots": (
-            "team_shots",
-            "opp_shots"
-        ),
-        "Shots on Target": (
-            "team_sot",
-            "opp_sot"
-        ),
-        "Corners": (
-            "team_corners",
-            "opp_corners"
-        ),
-        "Goals": (
-            "team_goals",
-            "opp_goals"
-        )
-    }
-
-    production_col, concession_col = metric_map[
-        context_market
-    ]
-
-    context_rows = []
-
-    for opponent in sorted(
-        set(
-            context_df[
-                "home_team"
-            ].dropna()
-        )
-        |
-        set(
-            context_df[
-                "away_team"
-            ].dropna()
-        )
-    ):
-
-        if opponent == context_team:
-            continue
-
-        opp_rows = context_df[
-            (
-                (
-                    context_df["home_team"]
-                    == opponent
-                )
-                |
-                (
-                    context_df["away_team"]
-                    == opponent
-                )
-            )
-        ]
-
-        if opp_rows.empty:
-            continue
-
-        context_rows.append({
-            "Opponent": opponent,
-            "Matches": len(opp_rows),
-            f"{context_team} {context_market}":
-                average_value(
-                    opp_rows,
-                    production_col
-                ),
-            f"{context_team} Conceded":
-                average_value(
-                    opp_rows,
-                    concession_col
-                )
-        })
-
-    if context_rows:
-
-        context_display = pd.DataFrame(
-            context_rows
-        )
-
-        st.dataframe(
-            context_display,
-            use_container_width=True,
-            hide_index=True
-        )
-
-    else:
-
-        st.info(
-            "No opponent context available."
-        )
 
     st.info(
-        "Opponent-level rows are descriptive. "
-        "They should be interpreted alongside sample size, "
-        "venue and competition."
-    )
-
-
-# ============================================================
-# STEP 96
-# LINE SENSITIVITY
-# ============================================================
-
-with tab11:
-
-    st.subheader(
-        "🎚️ Step 96 — Line Sensitivity"
-    )
-
-    st.caption(
-        "Compare nearby lines to see how historical hit rates "
-        "change as the market line changes."
-    )
-
-    sensitivity_team = st.selectbox(
-        "Team",
-        team_list(data),
-        key="sensitivity_team"
-    )
-
-    sensitivity_market = st.selectbox(
-        "Market",
-        BASE_MARKET_COLUMNS,
-        key="sensitivity_market"
-    )
-
-    sensitivity_direction = st.selectbox(
-        "Direction",
-        ["Over", "Under"],
-        key="sensitivity_direction"
-    )
-
-    sensitivity_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="sensitivity_venue"
-    )
-
-    sensitivity_sample = st.selectbox(
-        "Historical sample",
-        [5, 10, 15],
-        index=2,
-        key="sensitivity_sample"
-    )
-
-    start_line = st.number_input(
-        "Starting line",
-        min_value=0.0,
-        max_value=25.0,
-        value=1.5,
-        step=0.5,
-        key="sensitivity_start"
-    )
-
-    number_lines = st.selectbox(
-        "Number of lines",
-        [3, 5, 7],
-        index=2,
-        key="sensitivity_count"
-    )
-
-    sensitivity_df = filtered_team_matches(
-        data,
-        sensitivity_team,
-        "All",
-        "All",
-        sensitivity_venue,
-        sensitivity_sample
-    )
-
-    sensitivity_rows = []
-
-    for i in range(
-        number_lines
-    ):
-
-        test_line = (
-            start_line
-            + i * 0.5
-        )
-
-        result = analyse_market(
-            sensitivity_df,
-            sensitivity_market,
-            sensitivity_direction,
-            test_line
-        )
-
-        sensitivity_rows.append({
-            "Line": test_line,
-            "Hits": result["hits"],
-            "Misses": result["misses"],
-            "Sample": result["sample_size"],
-            "Historical Hit Rate":
-                fmt_pct(
-                    result["hit_rate"]
-                )
-        })
-
-    sensitivity_display = pd.DataFrame(
-        sensitivity_rows
-    )
-
-    st.dataframe(
-        sensitivity_display,
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.caption(
-        "This table describes historical sensitivity to the "
-        "line. It does not identify a preferred line."
-    )
-
-
-# ============================================================
-# STEP 97
-# MARKET STABILITY PANEL
-# ============================================================
-
-with tab12:
-
-    st.subheader(
-        "🧭 Step 97 — Market Stability Panel"
-    )
-
-    stability_team = st.selectbox(
-        "Team",
-        team_list(data),
-        key="stability_team"
-    )
-
-    stability_market = st.selectbox(
-        "Market",
-        BASE_MARKET_COLUMNS,
-        key="stability_market"
-    )
-
-    stability_direction = st.selectbox(
-        "Direction",
-        ["Over", "Under"],
-        key="stability_direction"
-    )
-
-    stability_line = st.number_input(
-        "Line",
-        min_value=0.0,
-        max_value=30.0,
-        value=3.5,
-        step=0.5,
-        key="stability_line"
-    )
-
-    stability_venue = st.selectbox(
-        "Venue",
-        ["All", "Home", "Away"],
-        key="stability_venue"
-    )
-
-    stability_df = filtered_team_matches(
-        data,
-        stability_team,
-        "All",
-        "All",
-        stability_venue,
-        15
-    )
-
-    stability_result = analyse_market(
-        stability_df,
-        stability_market,
-        stability_direction,
-        stability_line
-    )
-
-    stability_column = MARKET_COLUMN_MAP[
-        stability_market
-    ]
-
-    stability_values = pd.to_numeric(
-        stability_df[
-            stability_column
-        ],
-        errors="coerce"
-    ).dropna()
-
-    if not stability_values.empty:
-
-        st1, st2, st3, st4 = st.columns(4)
-
-        st1.metric(
-            "Historical Hit Rate",
-            fmt_pct(
-                stability_result[
-                    "hit_rate"
-                ]
-            )
-        )
-
-        st2.metric(
-            "Sample",
-            stability_result[
-                "sample_size"
-            ]
-        )
-
-        st3.metric(
-            "Median",
-            fmt_num(
-                stability_values.median()
-            )
-        )
-
-        st4.metric(
-            "Std Dev",
-            fmt_num(
-                stability_values.std()
-            )
-        )
-
-        cv = (
-            stability_values.std()
-            /
-            stability_values.mean()
-            if (
-                stability_values.mean()
-                != 0
-            )
-            else None
-        )
-
-        stability_rows = [
-            {
-                "Measure": "Mean",
-                "Value":
-                    stability_values.mean()
-            },
-            {
-                "Measure": "Median",
-                "Value":
-                    stability_values.median()
-            },
-            {
-                "Measure": "Minimum",
-                "Value":
-                    stability_values.min()
-            },
-            {
-                "Measure": "Maximum",
-                "Value":
-                    stability_values.max()
-            },
-            {
-                "Measure": "Standard Deviation",
-                "Value":
-                    stability_values.std()
-            },
-            {
-                "Measure": "Coefficient of Variation",
-                "Value": cv
-            }
-        ]
-
-        st.dataframe(
-            pd.DataFrame(
-                stability_rows
-            ),
-            use_container_width=True,
-            hide_index=True
-        )
-
-        quality_label, quality_message = sample_quality(
-            stability_result[
-                "sample_size"
-            ]
-        )
-
-        st.info(
-            f"{quality_label}: {quality_message}"
-        )
-
-    else:
-
-        st.info(
-            "No stability data available."
-        )
-
-
-# ============================================================
-# STEP 98
-# MATCH RESEARCH SCORECARD
-# ============================================================
-
-with tab13:
-
-    st.subheader(
-        "📝 Step 98 — Match Research Scorecard"
-    )
-
-    st.caption(
-        "A structured checklist for documenting research. "
-        "It intentionally does not generate a betting score."
-    )
-
-    score_home = st.selectbox(
-        "Home Team",
-        team_list(data),
-        key="score_home"
-    )
-
-    score_away_options = [
-        t for t in team_list(data)
-        if t != score_home
-    ]
-
-    score_away = st.selectbox(
-        "Away Team",
-        score_away_options,
-        key="score_away"
-    )
-
-    score_market = st.selectbox(
-        "Market researched",
-        BASE_MARKET_COLUMNS,
-        key="score_market"
-    )
-
-    score_direction = st.selectbox(
-        "Direction",
-        ["Over", "Under"],
-        key="score_direction"
-    )
-
-    score_line = st.number_input(
-        "Line",
-        min_value=0.0,
-        max_value=30.0,
-        value=3.5,
-        step=0.5,
-        key="score_line"
-    )
-
-    score_odds = st.number_input(
-        "Odds observed",
-        min_value=1.01,
-        max_value=100.0,
-        value=1.30,
-        step=0.01,
-        key="score_odds"
-    )
-
-    st.divider()
-
-    st.subheader(
-        "Research Checklist"
-    )
-
-    checks = {}
-
-    checklist = [
-        "Historical team production reviewed",
-        "Home/away split reviewed",
-        "Opponent defensive context reviewed",
-        "Recent match-by-match results reviewed",
-        "Market line tested",
-        "Nearby lines compared",
-        "Sample size checked",
-        "Head-to-head reviewed where available",
-        "Team news / lineup information checked",
-        "Tactical context considered",
-        "Market price recorded"
-    ]
-
-    for item in checklist:
-
-        checks[item] = st.checkbox(
-            item,
-            key=f"check_{item}"
-        )
-
-    completed = sum(
-        checks.values()
-    )
-
-    total_checks = len(
-        checklist
-    )
-
-    st.metric(
-        "Research items completed",
-        f"{completed}/{total_checks}"
-    )
-
-    notes = st.text_area(
-        "Research notes",
-        height=200,
-        key="scorecard_notes"
+        "Primary dataset: football_master_2024_27_v1.csv. "
+        "StatsBomb and Understat are supplementary sources "
+        "and do not replace the master dataset."
     )
 
     if st.button(
-        "Save Scorecard to Audit",
-        key="save_scorecard"
+        "🔄 Run Live Integration Checks",
+        key="run_health_checks"
     ):
 
-        audit_entry = {
-            "Timestamp": datetime.now().isoformat(
-                timespec="seconds"
-            ),
-            "Home Team": score_home,
-            "Away Team": score_away,
-            "Market": score_market,
-            "Direction": score_direction,
-            "Line": score_line,
-            "Odds": score_odds,
-            "Checklist Completed": completed,
-            "Checklist Total": total_checks,
-            "Checklist %": (
-                completed / total_checks
-                if total_checks
-                else 0
-            ),
-            "Notes": notes,
-            "Outcome": "",
-            "Actual Result": ""
-        }
-
-        if os.path.exists(
-            AUDIT_FILE
+        with st.spinner(
+            "Testing StatsBomb and Understat..."
         ):
 
-            existing = pd.read_csv(
-                AUDIT_FILE
+            health_results = (
+                run_external_health_checks()
             )
 
-            updated = pd.concat(
-                [
-                    existing,
-                    pd.DataFrame([
-                        audit_entry
-                    ])
-                ],
-                ignore_index=True
-            )
+        st.session_state[
+            "external_health_results"
+        ] = health_results
 
-        else:
-
-            updated = pd.DataFrame([
-                audit_entry
-            ])
-
-        updated.to_csv(
-            AUDIT_FILE,
-            index=False
+        st.session_state[
+            "external_health_check_time"
+        ] = datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
         )
 
-        st.success(
-            "Research scorecard saved to audit trail."
-        )
-
-
-# ============================================================
-# STEP 99
-# RESEARCH AUDIT TRAIL
-# ============================================================
-
-with tab14:
+    st.divider()
 
     st.subheader(
-        "🗂️ Step 99 — Research Audit Trail"
+        "Primary Dataset"
     )
 
-    st.caption(
-        "Records what was researched and allows outcomes "
-        "to be entered later."
+    primary_rows = [
+        {
+            "Source": MASTER_FILE,
+            "Role": "PRIMARY",
+            "Loaded": "Yes",
+            "Records": len(data),
+            "Status": "🟢 Active"
+        }
+    ]
+
+    st.dataframe(
+        pd.DataFrame(
+            primary_rows
+        ),
+        use_container_width=True,
+        hide_index=True
     )
 
-    if os.path.exists(
-        AUDIT_FILE
+    st.divider()
+
+    st.subheader(
+        "External Source Status"
+    )
+
+    if (
+        "external_health_results"
+        not in st.session_state
     ):
 
-        try:
-
-            audit_df = pd.read_csv(
-                AUDIT_FILE
-            ).fillna("")
-
-        except Exception:
-
-            audit_df = pd.DataFrame()
+        st.warning(
+            "Health checks have not been run yet. "
+            "Press 'Run Live Integration Checks'."
+        )
 
     else:
 
-        audit_df = pd.DataFrame()
+        health_results = st.session_state[
+            "external_health_results"
+        ]
 
-    if not audit_df.empty:
+        health_table = []
+
+        for result in health_results:
+
+            health_table.append(
+                {
+                    "Source": result[
+                        "Source"
+                    ],
+                    "Package": result[
+                        "Package"
+                    ],
+                    "Installed": (
+                        "✓"
+                        if result[
+                            "Installed"
+                        ]
+                        else "✗"
+                    ),
+                    "Connected": (
+                        "✓"
+                        if result[
+                            "Connected"
+                        ]
+                        else "✗"
+                    ),
+                    "Data Retrieved": (
+                        "✓"
+                        if result[
+                            "Data Retrieved"
+                        ]
+                        else "✗"
+                    ),
+                    "Records": result[
+                        "Records"
+                    ],
+                    "Status": (
+                        f"{health_icon(result['Status'])} "
+                        f"{result['Status']}"
+                    )
+                }
+            )
 
         st.dataframe(
-            audit_df,
+            pd.DataFrame(
+                health_table
+            ),
             use_container_width=True,
             hide_index=True
+        )
+
+        check_time = st.session_state.get(
+            "external_health_check_time",
+            "Unknown"
+        )
+
+        st.caption(
+            f"Last checked: {check_time}"
         )
 
         st.divider()
 
         st.subheader(
-            "Add Outcome"
+            "Detailed Diagnostics"
         )
 
-        audit_index = st.number_input(
-            "Audit row number",
-            min_value=1,
-            max_value=len(audit_df),
-            value=1,
-            step=1,
-            key="audit_index"
-        )
+        for result in health_results:
 
-        selected_idx = (
-            int(audit_index) - 1
-        )
+            icon = health_icon(
+                result["Status"]
+            )
 
-        actual_result = st.number_input(
-            "Actual market result",
-            min_value=0.0,
-            max_value=100.0,
-            value=0.0,
-            step=0.5,
-            key="audit_actual"
-        )
+            with st.expander(
+                f"{icon} "
+                f"{result['Source']} — "
+                f"{result['Status']}"
+            ):
 
-        if st.button(
-            "Settle Audit Record",
-            key="settle_audit"
-        ):
-
-            row = audit_df.iloc[
-                selected_idx
-            ]
-
-            try:
-
-                selected_line = float(
-                    row["Line"]
+                st.write(
+                    f"**Package:** "
+                    f"{result['Package']}"
                 )
 
-                if row["Direction"] == "Over":
+                st.write(
+                    f"**Installed:** "
+                    f"{result['Installed']}"
+                )
 
-                    won = (
-                        actual_result
-                        > selected_line
+                st.write(
+                    f"**Connected:** "
+                    f"{result['Connected']}"
+                )
+
+                st.write(
+                    f"**Data retrieved:** "
+                    f"{result['Data Retrieved']}"
+                )
+
+                st.write(
+                    f"**Records returned:** "
+                    f"{result['Records']}"
+                )
+
+                st.write(
+                    f"**Details:** "
+                    f"{result['Details']}"
+                )
+
+                if (
+                    result["Status"]
+                    ==
+                    "Healthy"
+                ):
+
+                    st.success(
+                        f"{result['Source']} passed "
+                        "the runtime health check."
+                    )
+
+                elif (
+                    result["Status"]
+                    ==
+                    "Package missing"
+                ):
+
+                    st.error(
+                        f"{result['Source']} package is "
+                        "not installed in the current "
+                        "environment."
+                    )
+
+                elif (
+                    result["Status"]
+                    ==
+                    "Connection failed"
+                ):
+
+                    st.error(
+                        f"{result['Source']} could not "
+                        "be queried successfully."
                     )
 
                 else:
 
-                    won = (
-                        actual_result
-                        < selected_line
+                    st.warning(
+                        f"{result['Source']} responded, "
+                        "but usable records were not confirmed."
                     )
-
-                audit_df.loc[
-                    selected_idx,
-                    "Actual Result"
-                ] = actual_result
-
-                audit_df.loc[
-                    selected_idx,
-                    "Outcome"
-                ] = (
-                    "Won"
-                    if won
-                    else "Lost"
-                )
-
-                audit_df.to_csv(
-                    AUDIT_FILE,
-                    index=False
-                )
-
-                st.success(
-                    "Audit record settled."
-                )
-
-                st.rerun()
-
-            except Exception as exc:
-
-                st.error(
-                    f"Could not settle record: {exc}"
-                )
-
-        st.download_button(
-            "Download Research Audit CSV",
-            audit_df.to_csv(
-                index=False
-            ).encode("utf-8"),
-            "research_audit_log.csv",
-            "text/csv",
-            key="download_audit"
-        )
-
-    else:
-
-        st.info(
-            "No research records have been saved yet. "
-            "Use the Match Research Scorecard to create one."
-        )
-
-
-# ============================================================
-# STEP 100
-# RESEARCH PERFORMANCE DASHBOARD
-# ============================================================
-
-st.divider()
-
-# This section is displayed in the final tab through a
-# separate conditional because the tabs are already created.
-
-with tab14:
 
     st.divider()
 
     st.subheader(
-        "🏁 Step 100 — Research Performance Dashboard"
+        "Installation Commands"
     )
 
-    if os.path.exists(
-        AUDIT_FILE
-    ):
+    st.code(
+        """pip install statsbombpy
+pip install understatapi""",
+        language="bash"
+    )
 
-        try:
+    st.caption(
+        "After installing a package, restart Streamlit "
+        "and run the live integration checks again."
+    )
 
-            performance_df = pd.read_csv(
-                AUDIT_FILE
-            ).fillna("")
+    st.divider()
 
-        except Exception:
+    st.subheader(
+        "Data Architecture"
+    )
 
-            performance_df = pd.DataFrame()
-
-    else:
-
-        performance_df = pd.DataFrame()
-
-    if not performance_df.empty:
-
-        outcome_series = (
-            performance_df[
-                "Outcome"
-            ]
-            .astype(str)
-            .str.strip()
-        )
-
-        total_researched = len(
-            performance_df
-        )
-
-        settled_df = performance_df[
-            outcome_series.isin(
-                [
-                    "Won",
-                    "Lost"
-                ]
-            )
+    architecture = pd.DataFrame(
+        [
+            {
+                "Source": MASTER_FILE,
+                "Role": "Primary",
+                "Used by research engine": "Yes",
+                "External dependency": "No"
+            },
+            {
+                "Source": "StatsBomb",
+                "Role": "Supplementary",
+                "Used by research engine": (
+                    "Only after integration"
+                ),
+                "External dependency": "Yes"
+            },
+            {
+                "Source": "Understat",
+                "Role": "Supplementary",
+                "Used by research engine": (
+                    "Only after integration"
+                ),
+                "External dependency": "Yes"
+            }
         ]
+    )
 
-        won_count = int(
-            (
-                settled_df[
-                    "Outcome"
-                ]
-                == "Won"
-            ).sum()
-        )
-
-        lost_count = int(
-            (
-                settled_df[
-                    "Outcome"
-                ]
-                == "Lost"
-            ).sum()
-        )
-
-        settled_count = (
-            won_count
-            + lost_count
-        )
-
-        actual_hit_rate = (
-            won_count / settled_count
-            if settled_count > 0
-            else None
-        )
-
-        p1, p2, p3, p4 = st.columns(4)
-
-        p1.metric(
-            "Research Records",
-            total_researched
-        )
-
-        p2.metric(
-            "Settled",
-            settled_count
-        )
-
-        p3.metric(
-            "Won",
-            won_count
-        )
-
-        p4.metric(
-            "Actual Settled Hit Rate",
-            fmt_pct(
-                actual_hit_rate
-            )
-        )
-
-        st.caption(
-            "Actual settled hit rate describes the records "
-            "you have entered into the audit system. It is "
-            "not a forecast of future performance."
-        )
-
-        st.divider()
-
-        st.subheader(
-            "Market-by-Market Audit"
-        )
-
-        market_perf_rows = []
-
-        for market_name in sorted(
-            performance_df[
-                "Market"
-            ]
-            .dropna()
-            .unique()
-        ):
-
-            subset = performance_df[
-                performance_df[
-                    "Market"
-                ] == market_name
-            ]
-
-            subset_settled = subset[
-                subset[
-                    "Outcome"
-                ].isin(
-                    [
-                        "Won",
-                        "Lost"
-                    ]
-                )
-            ]
-
-            market_wins = int(
-                (
-                    subset_settled[
-                        "Outcome"
-                    ]
-                    == "Won"
-                ).sum()
-            )
-
-            market_settled = len(
-                subset_settled
-            )
-
-            market_perf_rows.append({
-                "Market": market_name,
-                "Research Records": len(
-                    subset
-                ),
-                "Settled": market_settled,
-                "Won": market_wins,
-                "Lost": (
-                    market_settled
-                    - market_wins
-                ),
-                "Actual Hit Rate": (
-                    f"{market_wins / market_settled * 100:.1f}%"
-                    if market_settled
-                    else "—"
-                )
-            })
-
-        if market_perf_rows:
-
-            st.dataframe(
-                pd.DataFrame(
-                    market_perf_rows
-                ),
-                use_container_width=True,
-                hide_index=True
-            )
-
-        st.divider()
-
-        st.subheader(
-            "Team-by-Team Audit"
-        )
-
-        team_perf_rows = []
-
-        audit_teams = sorted(
-            set(
-                performance_df[
-                    "Home Team"
-                ].dropna()
-            )
-            |
-            set(
-                performance_df[
-                    "Away Team"
-                ].dropna()
-            )
-        )
-
-        for t in audit_teams:
-
-            subset = performance_df[
-                (
-                    performance_df[
-                        "Home Team"
-                    ] == t
-                )
-                |
-                (
-                    performance_df[
-                        "Away Team"
-                    ] == t
-                )
-            ]
-
-            settled_subset = subset[
-                subset[
-                    "Outcome"
-                ].isin(
-                    [
-                        "Won",
-                        "Lost"
-                    ]
-                )
-            ]
-
-            wins_t = int(
-                (
-                    settled_subset[
-                        "Outcome"
-                    ]
-                    == "Won"
-                ).sum()
-            )
-
-            settled_t = len(
-                settled_subset
-            )
-
-            team_perf_rows.append({
-                "Team": t,
-                "Research Records": len(
-                    subset
-                ),
-                "Settled": settled_t,
-                "Won": wins_t,
-                "Lost": (
-                    settled_t
-                    - wins_t
-                ),
-                "Actual Hit Rate": (
-                    f"{wins_t / settled_t * 100:.1f}%"
-                    if settled_t
-                    else "—"
-                )
-            })
-
-        if team_perf_rows:
-
-            st.dataframe(
-                pd.DataFrame(
-                    team_perf_rows
-                ).sort_values(
-                    "Research Records",
-                    ascending=False
-                ),
-                use_container_width=True,
-                hide_index=True
-            )
-
-        st.divider()
-
-        st.subheader(
-            "Research Completeness"
-        )
-
-        if "Checklist %" in performance_df.columns:
-
-            checklist_values = pd.to_numeric(
-                performance_df[
-                    "Checklist %"
-                ],
-                errors="coerce"
-            ).dropna()
-
-            if not checklist_values.empty:
-
-                st.metric(
-                    "Average Research Completeness",
-                    f"{checklist_values.mean() * 100:.1f}%"
-                )
-
-                completeness_df = performance_df[
-                    [
-                        "Timestamp",
-                        "Home Team",
-                        "Away Team",
-                        "Market",
-                        "Checklist Completed",
-                        "Checklist Total",
-                        "Checklist %"
-                    ]
-                ].copy()
-
-                completeness_df[
-                    "Checklist %"
-                ] = (
-                    pd.to_numeric(
-                        completeness_df[
-                            "Checklist %"
-                        ],
-                        errors="coerce"
-                    )
-                    * 100
-                ).round(1)
-
-                st.dataframe(
-                    completeness_df,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-    else:
-
-        st.info(
-            "The performance dashboard will populate after "
-            "research records are saved and settled."
-        )
+    st.dataframe(
+        architecture,
+        use_container_width=True,
+        hide_index=True
+    )
 
 
 # ============================================================
-# FINAL DATASET STATUS
+# FOOTER
 # ============================================================
 
 st.divider()
 
 st.caption(
-    f"Primary dataset: {MASTER_FILE} | "
-    f"{len(data):,} matches loaded | "
-    f"{data['season'].nunique()} seasons | "
-    f"{data['competition'].nunique()} competitions | "
-    f"{len(team_list(data)):,} teams"
+    "V1 deliberately avoids automatic 'safe bet' labels. "
+    "The goal is to improve research quality and decision-making."
 )
 
 st.caption(
-    "Steps 91–100 add data-quality checks, coverage analysis, "
-    "recent-form research, market consistency, line sensitivity, "
-    "context analysis, a research scorecard, an audit trail and "
-    "performance tracking. These features describe historical "
-    "evidence and recorded research outcomes; they do not "
-    "produce automatic 'safe bet' labels or future probabilities."
+    "External-source health checks verify package availability "
+    "and live data retrieval. They do not merge external data "
+    "into the primary master dataset."
 )

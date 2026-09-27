@@ -318,120 +318,7 @@ with tab2:
             use_container_width=True,
             hide_index=True
         )
-with tab3:
-    st.subheader("Bookmaker Market Monitor")
 
-    WATCHLIST_FILE = "market_watchlist.csv"
-
-if "market_watchlist" not in st.session_state:
-    if os.path.exists(WATCHLIST_FILE):
-        st.session_state.market_watchlist = (
-            pd.read_csv(WATCHLIST_FILE).to_dict("records")
-        )
-    else:
-        st.session_state.market_watchlist = []
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        bookmaker = st.selectbox(
-            "Bookmaker",
-            ["SportyBet", "SunBet", "Virgin Bet"],
-            key="monitor_bookmaker"
-        )
-
-        match_name = st.text_input(
-            "Match",
-            "",
-            placeholder="e.g. Chelsea vs Brentford",
-            key="monitor_match"
-        )
-
-        teams = sorted(
-            set(data.home_team.dropna()) |
-            set(data.away_team.dropna())
-        )
-
-        monitor_team = st.selectbox(
-            "Team",
-            teams,
-            key="monitor_team"
-        )
-
-        market = st.selectbox(
-            "Market",
-            ["Shots", "Shots on Target", "Corners", "Goals"],
-            key="monitor_market"
-        )
-
-    with col2:
-        direction = st.selectbox(
-            "Direction",
-            ["Over", "Under"],
-            key="monitor_direction"
-        )
-
-        line = st.number_input(
-            "Line",
-            min_value=0.0,
-            max_value=30.0,
-            value=3.5,
-            step=0.5,
-            key="monitor_line"
-        )
-
-        odds = st.number_input(
-            "Decimal odds",
-            min_value=1.01,
-            max_value=100.0,
-            value=1.30,
-            step=0.01,
-            key="monitor_odds"
-        )
-
-        sample = st.selectbox(
-            "Historical sample",
-            [5, 10, 15],
-            index=1,
-            key="monitor_sample"
-        )
-
-        monitor_season = st.selectbox(
-            "Season",
-            ["All"] + sorted(
-                data["season"].dropna().unique().tolist(),
-                reverse=True
-            ),
-            key="monitor_season"
-        )
-
-        monitor_competition = st.selectbox(
-            "Competition",
-            ["All"] + sorted(
-                data["competition"].dropna().unique().tolist()
-            ),
-            key="monitor_competition"
-        )
-
-        monitor_venue = st.selectbox(
-            "Venue",
-            ["All", "Home", "Away"],
-            key="monitor_venue"
-        )
-
-        if st.button("Analyse & Add Market", key="add_market"):
-            m = team_matches(data, monitor_team)
-
-            if monitor_season!= "All":
-                m = m[m["season"] == monitor_season]
-
-            if monitor_competition!= "All":
-                m = m[m["competition"] == monitor_competition]
-
-            if monitor_venue!= "All":
-                m = m[m["venue"] == monitor_venue]
-
-            m = m.head(sample)
 with tab3:
     st.subheader("Bookmaker Market Monitor")
 
@@ -542,64 +429,70 @@ with tab3:
             if monitor_competition!= "All":
                 m = m[m["competition"] == monitor_competition]
 
+with tab3:
+    st.subheader("Bookmaker Market Monitor")
+
+    WATCHLIST_FILE = "market_watchlist.csv"
+
+    if "market_watchlist" not in st.session_state:
+        if os.path.exists(WATCHLIST_FILE):
+            st.session_state.market_watchlist = pd.read_csv(WATCHLIST_FILE).to_dict("records")
+        else:
+            st.session_state.market_watchlist = []
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        bookmaker = st.selectbox("Bookmaker", ["SportyBet", "SunBet", "Virgin Bet"], key="monitor_bookmaker")
+        match_name = st.text_input("Match", "", placeholder="e.g. Chelsea vs Brentford", key="monitor_match")
+        teams = sorted(set(data.home_team.dropna()) | set(data.away_team.dropna()))
+        monitor_team = st.selectbox("Team", teams, key="monitor_team")
+        market = st.selectbox("Market", ["Shots", "Shots on Target", "Corners", "Goals"], key="monitor_market")
+
+    with col2:
+        direction = st.selectbox("Direction", ["Over", "Under"], key="monitor_direction")
+        line = st.number_input("Line", min_value=0.0, max_value=30.0, value=3.5, step=0.5, key="monitor_line")
+        odds = st.number_input("Decimal odds", min_value=1.01, max_value=100.0, value=1.30, step=0.01, key="monitor_odds")
+        sample = st.selectbox("Historical sample", [5, 10, 15], index=1, key="monitor_sample")
+        monitor_season = st.selectbox("Season", ["All"] + sorted(data["season"].dropna().unique().tolist(), reverse=True), key="monitor_season")
+        monitor_competition = st.selectbox("Competition", ["All"] + sorted(data["competition"].dropna().unique().tolist()), key="monitor_competition")
+        monitor_venue = st.selectbox("Venue", ["All", "Home", "Away"], key="monitor_venue")
+
+        if st.button("Analyse & Add Market", key="add_market"):
+            m = team_matches(data, monitor_team)
+            if monitor_season!= "All":
+                m = m[m["season"] == monitor_season]
+            if monitor_competition!= "All":
+                m = m[m["competition"] == monitor_competition]
             if monitor_venue!= "All":
                 m = m[m["venue"] == monitor_venue]
-
             m = m.head(sample)
 
-            col_map = {
-                "Shots": "team_shots",
-                "Shots on Target": "team_sot",
-                "Corners": "team_corners",
-                "Goals": "team_goals"
-            }
-
+            col_map = {"Shots": "team_shots", "Shots on Target": "team_sot", "Corners": "team_corners", "Goals": "team_goals"}
             col = col_map[market]
             rate = hit_rate(m[col], line, direction == "Over")
             breakeven = 1 / odds
 
-            if rate is not None:
-                historical_vs_breakeven = "Above" if rate >= breakeven else "Below"
-                historical_hit_rate = rate * 100
-            else:
-                historical_vs_breakeven = "-"
-                historical_hit_rate = None
-
+            historical_vs_breakeven = "Above" if rate is not None and rate >= breakeven else "Below" if rate is not None else "-"
+            historical_hit_rate = rate * 100 if rate is not None else None
             break_even_rate = breakeven * 100
-
-            if historical_hit_rate is not None:
-                edge = historical_hit_rate - break_even_rate
-                edge_display = f"{edge:+.1f} pp"
-            else:
-                edge_display = "-"
+            edge_display = f"{(historical_hit_rate - break_even_rate):+.1f} pp" if historical_hit_rate is not None else "-"
 
             entry = {
-                "Bookmaker": bookmaker,
-                "Match": match_name,
-                "Team": monitor_team,
-                "Market": market,
-                "Direction": direction,
-                "Line": line,
-                "Odds": odds,
-                "Historical Hit Rate": (
-                    f"{historical_hit_rate:.1f}%"
-                    if historical_hit_rate is not None else "-"
-                ),
-                "Break-even": f"{break_even_rate:.1f}%",
-                "Edge vs Break-even": edge_display,
+                "Bookmaker": bookmaker, "Match": match_name, "Team": monitor_team,
+                "Market": market, "Direction": direction, "Line": line, "Odds": odds,
+                "Historical Hit Rate": f"{historical_hit_rate:.1f}%" if historical_hit_rate is not None else "-",
+                "Break-even": f"{break_even_rate:.1f}%", "Edge vs Break-even": edge_display,
                 "Historical vs Break-even": historical_vs_breakeven
             }
-
             st.session_state.market_watchlist.append(entry)
             pd.DataFrame(st.session_state.market_watchlist).to_csv(WATCHLIST_FILE, index=False)
 
     st.divider()
     st.subheader("Tracked Markets")
-
     if st.session_state.market_watchlist:
         watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
         st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
-
         if st.button("Clear Monitor", key="clear_monitor"):
             st.session_state.market_watchlist = []
             if os.path.exists(WATCHLIST_FILE):
@@ -607,7 +500,6 @@ with tab3:
             st.rerun()
     else:
         st.info("No markets added yet.")
-
 with tab4:
     st.subheader("CSV format")
     st.write("Your CSV should contain one row per match with these columns:")

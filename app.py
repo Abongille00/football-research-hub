@@ -380,16 +380,34 @@ with tab3:
 
     st.divider()
     st.subheader("Tracked Markets")
+
     if st.session_state.market_watchlist:
-        watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
-        st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
+        watchlist_df = pd.DataFrame(
+            st.session_state.market_watchlist
+        )
+
+        st.dataframe(
+            watchlist_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        csv_watchlist = watchlist_df.to_csv(index=False).encode("utf-8")
+
+        st.download_button(
+            "Download Watchlist CSV",
+            csv_watchlist,
+            "market_watchlist.csv",
+            "text/csv",
+            key="download_watchlist"
+        )
+
         if st.button("Clear Monitor", key="clear_monitor"):
             st.session_state.market_watchlist = []
-            if os.path.exists(WATCHLIST_FILE):
-                os.remove(WATCHLIST_FILE)
             st.rerun()
     else:
         st.info("No markets added yet.")
+
 with tab4:
     st.subheader("CSV format")
     st.write("Your CSV should contain one row per match with these columns:")

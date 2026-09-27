@@ -394,9 +394,32 @@ with tab3:
 
     if st.session_state.market_watchlist:
         watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
-        st.dataframe(watchlist_df, use_container_width=True, hide_index=True)
+
+        status_options = ["Watching", "Won", "Lost", "Void"]
+
+        for i in range(len(watchlist_df)):
+            current_status = watchlist_df.loc[i, "Status"] if "Status" in watchlist_df.columns else "Watching"
+            if current_status not in status_options:
+                current_status = "Watching"
+            new_status = st.selectbox(
+                f"Status — {watchlist_df.loc[i, 'Match']} ({watchlist_df.loc[i, 'Market']} {watchlist_df.loc[i, 'Direction']} {watchlist_df.loc[i, 'Line']})",
+                status_options,
+                index=status_options.index(current_status),
+                key=f"status_{i}"
+            )
+            st.session_state.market_watchlist[i]["Status"] = new_status
+
+        watchlist_df = pd.DataFrame(st.session_state.market_watchlist)
+
+        st.dataframe(
+            watchlist_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
         csv_watchlist = watchlist_df.to_csv(index=False).encode("utf-8")
         st.download_button("Download Watchlist CSV", csv_watchlist, "market_watchlist.csv", "text/csv", key="download_watchlist")
+
         if st.button("Clear Monitor", key="clear_monitor"):
             st.session_state.market_watchlist = []
             if os.path.exists(WATCHLIST_FILE):

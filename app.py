@@ -152,7 +152,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🎯 Market Tester",
     "📊 Bookmaker Monitor",
     "📥 Data Format",
-    "⚔️ Match Research"
+    "🔬 Match Research"
 ])
 # ============================================================
 # PHASE 2 — RESEARCH ENGINE
@@ -362,6 +362,126 @@ def team_summary(df):
                 metrics[f"{label} Avg"] = None
 
     return metrics
+    # ============================================================
+# MATCH RESEARCH ENGINE — STEPS 19–25
+# ============================================================
+
+def get_match_history(data, home_team, away_team):
+    """
+    Finds previous meetings between two teams.
+    """
+
+    h2h = data[
+        (
+            (data["home_team"] == home_team) &
+            (data["away_team"] == away_team)
+        )
+        |
+        (
+            (data["home_team"] == away_team) &
+            (data["away_team"] == home_team)
+        )
+    ].copy()
+
+    if "date" in h2h.columns:
+        h2h = h2h.sort_values(
+            "date",
+            ascending=False
+        )
+
+    return h2h
+
+
+def recent_team_form(data, team, sample=5, venue="All"):
+    """
+    Returns recent matches for a team.
+    """
+
+    matches = team_matches(
+        data,
+        team
+    ).copy()
+
+    if venue != "All":
+        matches = matches[
+            matches["venue"] == venue
+        ]
+
+    return matches.head(sample)
+
+
+def match_team_summary(matches):
+    """
+    Creates descriptive statistics for a team's match sample.
+    """
+
+    if matches.empty:
+        return {
+            "Matches": 0,
+            "Shots": None,
+            "SOT": None,
+            "Corners": None,
+            "Goals": None
+        }
+
+    return {
+        "Matches": len(matches),
+        "Shots": matches["team_shots"].mean(),
+        "SOT": matches["team_sot"].mean(),
+        "Corners": matches["team_corners"].mean(),
+        "Goals": matches["team_goals"].mean()
+    }
+
+
+def build_market_comparison(
+    home_matches,
+    away_matches,
+    market,
+    direction,
+    line
+):
+    """
+    Compares the selected market for both teams.
+    """
+
+    home_result = analyse_market(
+        home_matches,
+        market,
+        direction,
+        line
+    )
+
+    away_result = analyse_market(
+        away_matches,
+        market,
+        direction,
+        line
+    )
+
+    return pd.DataFrame([
+        {
+            "Team": "Home",
+            "Matches": home_result["sample_size"],
+            "Hits": home_result["hits"],
+            "Misses": home_result["misses"],
+            "Hit Rate": (
+                f"{home_result['hit_rate'] * 100:.1f}%"
+                if home_result["hit_rate"] is not None
+                else "—"
+            )
+        },
+        {
+            "Team": "Away",
+            "Matches": away_result["sample_size"],
+            "Hits": away_result["hits"],
+            "Misses": away_result["misses"],
+            "Hit Rate": (
+                f"{away_result['hit_rate'] * 100:.1f}%"
+                if away_result["hit_rate"] is not None
+                else "—"
+            )
+        }
+    ])
 
 with tab1:
     st.subheader("Team Research Dashboard")
@@ -2271,6 +2391,457 @@ with tab5:
         "of the next match and do not automatically classify "
         "a market as safe."
                 )
+    # ============================================================
+# MATCH RESEARCH TAB — STEPS 19–25
+# ============================================================
+
+with tab5:
+
+    st.subheader("🔬 Match Research")
+
+    st.caption(
+        "Research a specific fixture by comparing both teams "
+        "using historical match-by-match data."
+    )
+
+    # --------------------------------------------------------
+    # FIXTURE SELECTION
+    # --------------------------------------------------------
+
+    teams = sorted(
+        set(data["home_team"].dropna()) |
+        set(data["away_team"].dropna())
+    )
+
+    r1, r2 = st.columns(2)
+
+    with r1:
+        home_team = st.selectbox(
+            "Home Team",
+            teams,
+            key="research_home_team"
+        )
+
+    with r2:
+        away_team_options = [
+            team for team in teams
+            if team != home_team
+        ]
+
+        away_team = st.selectbox(
+            "Away Team",
+            away_team_options,
+            key="research_away_team"
+        )
+
+    # --------------------------------------------------------
+    # MATCH CONTEXT
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Match Context")
+
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        research_season = st.selectbox(
+            "Season",
+            ["All"] + sorted(
+                data["season"].dropna().unique().tolist(),
+                reverse=True
+            ),
+            key="research_season"
+        )
+
+    with c2:
+        research_competition = st.selectbox(
+            "Competition",
+            ["All"] + sorted(
+                data["competition"].dropna().unique().tolist()
+            ),
+            key="research_competition"
+        )
+
+    with c3:
+        research_sample = st.selectbox(
+            "Recent matches",
+            [5, 10, 15],
+            index=1,
+            key="research_sample"
+        )
+
+    # --------------------------------------------------------
+    # FILTER BOTH TEAMS
+    # --------------------------------------------------------
+
+    home_matches = filtered_team_matches(
+        data=data,
+        team=home_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Home",
+        sample=research_sample
+    )
+
+    away_matches = filtered_team_matches(
+        data=data,
+        team=away_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Away",
+        sample=research_sample
+    )
+
+    home_all = filtered_team_matches(
+        data=data,
+        team=home_team,
+        season=research_season,
+        competition=research_competition,
+        venue="All",
+        sample=research_sample
+    )
+
+    away_all = filtered_team_matches(
+        data=data,
+        team=away_team,
+        season=research_season,
+        competition=research_competition,
+        venue="All",
+        sample=research_sample
+    )
+
+    # --------------------------------------------------------
+    # TEAM COMPARISON
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Home vs Away Team Comparison")
+
+    home_summary = match_team_summary(
+        home_matches
+    )
+
+    away_summary = match_team_summary(
+        away_matches
+    )
+
+    comparison_rows = [
+        {
+            "Metric": "Matches",
+            "Home Team": home_summary["Matches"],
+            "Away Team": away_summary["Matches"]
+        },
+        {
+            "Metric": "Avg Shots",
+            "Home Team": (
+                f"{home_summary['Shots']:.2f}"
+                if home_summary["Shots"] is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['Shots']:.2f}"
+                if away_summary["Shots"] is not None
+                else "—"
+            )
+        },
+        {
+            "Metric": "Avg Shots on Target",
+            "Home Team": (
+                f"{home_summary['SOT']:.2f}"
+                if home_summary["SOT"] is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['SOT']:.2f}"
+                if away_summary["SOT"] is not None
+                else "—"
+            )
+        },
+        {
+            "Metric": "Avg Corners",
+            "Home Team": (
+                f"{home_summary['Corners']:.2f}"
+                if home_summary["Corners"] is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['Corners']:.2f}"
+                if away_summary["Corners"] is not None
+                else "—"
+            )
+        },
+        {
+            "Metric": "Avg Goals",
+            "Home Team": (
+                f"{home_summary['Goals']:.2f}"
+                if home_summary["Goals"] is not None
+                else "—"
+            ),
+            "Away Team": (
+                f"{away_summary['Goals']:.2f}"
+                if away_summary["Goals"] is not None
+                else "—"
+            )
+        }
+    ]
+
+    st.dataframe(
+        pd.DataFrame(comparison_rows),
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # RECENT HOME FORM
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader(f"{home_team} — Recent Home Form")
+
+    if not home_matches.empty:
+
+        home_display = home_matches[
+            [
+                "date",
+                "home_team",
+                "away_team",
+                "team_goals",
+                "opp_goals",
+                "team_shots",
+                "team_sot",
+                "team_corners"
+            ]
+        ].copy()
+
+        st.dataframe(
+            home_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info(
+            f"No home matches found for {home_team}."
+        )
+
+    # --------------------------------------------------------
+    # RECENT AWAY FORM
+    # --------------------------------------------------------
+
+    st.subheader(f"{away_team} — Recent Away Form")
+
+    if not away_matches.empty:
+
+        away_display = away_matches[
+            [
+                "date",
+                "home_team",
+                "away_team",
+                "team_goals",
+                "opp_goals",
+                "team_shots",
+                "team_sot",
+                "team_corners"
+            ]
+        ].copy()
+
+        st.dataframe(
+            away_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info(
+            f"No away matches found for {away_team}."
+        )
+
+    # --------------------------------------------------------
+    # OVERALL FORM
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Overall Recent Form")
+
+    form_columns = [
+        "date",
+        "home_team",
+        "away_team",
+        "venue",
+        "team_goals",
+        "opp_goals",
+        "team_shots",
+        "team_sot",
+        "team_corners"
+    ]
+
+    left, right = st.columns(2)
+
+    with left:
+
+        st.caption(home_team)
+
+        if not home_all.empty:
+            st.dataframe(
+                home_all[
+                    [
+                        c for c in form_columns
+                        if c in home_all.columns
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("No data available.")
+
+    with right:
+
+        st.caption(away_team)
+
+        if not away_all.empty:
+            st.dataframe(
+                away_all[
+                    [
+                        c for c in form_columns
+                        if c in away_all.columns
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("No data available.")
+
+    # --------------------------------------------------------
+    # MARKET COMPARISON
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Market Comparison")
+
+    m1, m2, m3 = st.columns(3)
+
+    with m1:
+        research_market = st.selectbox(
+            "Market",
+            [
+                "Shots",
+                "Shots on Target",
+                "Corners",
+                "Goals"
+            ],
+            key="research_market"
+        )
+
+    with m2:
+        research_direction = st.selectbox(
+            "Direction",
+            ["Over", "Under"],
+            key="research_direction"
+        )
+
+    with m3:
+        research_line = st.number_input(
+            "Line",
+            min_value=0.0,
+            max_value=30.0,
+            value=3.5,
+            step=0.5,
+            key="research_line"
+        )
+
+    market_comparison = build_market_comparison(
+        home_matches,
+        away_matches,
+        research_market,
+        research_direction,
+        research_line
+    )
+
+    st.dataframe(
+        market_comparison,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # --------------------------------------------------------
+    # HEAD-TO-HEAD
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Head-to-Head")
+
+    h2h = get_match_history(
+        data,
+        home_team,
+        away_team
+    )
+
+    if research_season != "All":
+        h2h = h2h[
+            h2h["season"] == research_season
+        ]
+
+    if research_competition != "All":
+        h2h = h2h[
+            h2h["competition"] == research_competition
+        ]
+
+    if not h2h.empty:
+
+        h2h_display = h2h[
+            [
+                "date",
+                "season",
+                "competition",
+                "home_team",
+                "away_team",
+                "home_goals",
+                "away_goals",
+                "home_shots",
+                "away_shots",
+                "home_sot",
+                "away_sot",
+                "home_corners",
+                "away_corners"
+            ]
+        ].head(10)
+
+        st.dataframe(
+            h2h_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info(
+            "No previous meetings found for the selected filters."
+        )
+
+    # --------------------------------------------------------
+    # RESEARCH NOTES
+    # --------------------------------------------------------
+
+    st.divider()
+    st.subheader("Research Notes")
+
+    st.text_area(
+        "Notes for this fixture",
+        placeholder=(
+            "Record lineup information, injuries, referee notes, "
+            "tactical observations, team news, market observations, "
+            "or anything else relevant to your research."
+        ),
+        height=180,
+        key="match_research_notes"
+    )
+
+    st.caption(
+        "This tab is a research workspace. "
+        "Historical data describes previous matches and does not "
+        "establish the probability of the next match."
+                        )
 
 st.divider()
 st.caption("V1 deliberately avoids automatic 'safe bet' labels. The goal is to improve research quality and decision-making.")

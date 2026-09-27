@@ -93,11 +93,12 @@ if missing:
     st.error("Your CSV is missing these columns: " + ", ".join(missing))
     st.stop()
 
-tab1, tab2, tab3, tab4 = st.tabs([
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🔎 Team Research",
     "🎯 Market Tester",
     "📊 Bookmaker Monitor",
-    "📥 Data Format"
+    "📥 Data Format",
+    "⚔️ Match Research"
 ])
 # ============================================================
 # PHASE 2 — RESEARCH ENGINE
@@ -1450,6 +1451,772 @@ with tab4:
 
     csv_bytes = demo.to_csv(index=False).encode("utf-8")
     st.download_button("Download demo CSV", csv_bytes, "football_demo.csv", "text/csv")
+    # ============================================================
+# PHASE 3 — MATCH RESEARCH
+# STEPS 13–18
+# ============================================================
+
+with tab5:
+
+    st.subheader("⚔️ Match Research")
+
+    st.caption(
+        "Compare the selected home team's attacking profile "
+        "with the away team's defensive profile, and vice versa."
+    )
+
+    # ---------------------------------------------------------
+    # STEP 13 — MATCH SELECTION
+    # ---------------------------------------------------------
+
+    teams = sorted(
+        set(data.home_team.dropna()) |
+        set(data.away_team.dropna())
+    )
+
+    r1, r2 = st.columns(2)
+
+    with r1:
+        home_team = st.selectbox(
+            "Home Team",
+            teams,
+            key="research_home_team"
+        )
+
+    with r2:
+        away_team = st.selectbox(
+            "Away Team",
+            teams,
+            key="research_away_team"
+        )
+
+    # Prevent the same team being selected twice
+    if home_team == away_team:
+        st.warning(
+            "Please select two different teams."
+        )
+        st.stop()
+
+    # ---------------------------------------------------------
+    # FILTERS
+    # ---------------------------------------------------------
+
+    seasons = ["All"] + sorted(
+        data["season"].dropna().unique().tolist(),
+        reverse=True
+    )
+
+    competitions = ["All"] + sorted(
+        data["competition"].dropna().unique().tolist()
+    )
+
+    f1, f2, f3 = st.columns(3)
+
+    with f1:
+        research_season = st.selectbox(
+            "Season",
+            seasons,
+            key="research_season"
+        )
+
+    with f2:
+        research_competition = st.selectbox(
+            "Competition",
+            competitions,
+            key="research_competition"
+        )
+
+    with f3:
+        research_sample = st.select_slider(
+            "Recent sample",
+            options=[5, 10, 15],
+            value=10,
+            key="research_sample"
+        )
+
+    # ---------------------------------------------------------
+    # BUILD TEAM SAMPLES
+    # ---------------------------------------------------------
+
+    home_matches = filtered_team_matches(
+        data=data,
+        team=home_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Home",
+        sample=research_sample
+    )
+
+    away_matches = filtered_team_matches(
+        data=data,
+        team=away_team,
+        season=research_season,
+        competition=research_competition,
+        venue="Away",
+        sample=research_sample
+    )
+
+    # ---------------------------------------------------------
+    # STEP 14 — ATTACK VS DEFENCE
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Attack vs Defence")
+
+    st.caption(
+        "Home team attacking production is compared with "
+        "away team defensive concession, and vice versa."
+    )
+
+    def average_value(df, column):
+        if df is None or df.empty or column not in df.columns:
+            return None
+
+        values = pd.to_numeric(
+            df[column],
+            errors="coerce"
+        ).dropna()
+
+        if values.empty:
+            return None
+
+        return values.mean()
+
+    # Home attack
+    home_attack = {
+        "Shots": average_value(
+            home_matches,
+            "team_shots"
+        ),
+        "Shots on Target": average_value(
+            home_matches,
+            "team_sot"
+        ),
+        "Corners": average_value(
+            home_matches,
+            "team_corners"
+        ),
+        "Goals": average_value(
+            home_matches,
+            "team_goals"
+        )
+    }
+
+    # Away defence
+    away_defence = {
+        "Shots": average_value(
+            away_matches,
+            "opp_shots"
+        ),
+        "Shots on Target": average_value(
+            away_matches,
+            "opp_sot"
+        ),
+        "Corners": average_value(
+            away_matches,
+            "opp_corners"
+        ),
+        "Goals": average_value(
+            away_matches,
+            "opp_goals"
+        )
+    }
+
+    # Away attack
+    away_attack = {
+        "Shots": average_value(
+            away_matches,
+            "team_shots"
+        ),
+        "Shots on Target": average_value(
+            away_matches,
+            "team_sot"
+        ),
+        "Corners": average_value(
+            away_matches,
+            "team_corners"
+        ),
+        "Goals": average_value(
+            away_matches,
+            "team_goals"
+        )
+    }
+
+    # Home defence
+    home_defence = {
+        "Shots": average_value(
+            home_matches,
+            "opp_shots"
+        ),
+        "Shots on Target": average_value(
+            home_matches,
+            "opp_sot"
+        ),
+        "Corners": average_value(
+            home_matches,
+            "opp_corners"
+        ),
+        "Goals": average_value(
+            home_matches,
+            "opp_goals"
+        )
+    }
+
+    attack_defence_rows = []
+
+    for metric in [
+        "Shots",
+        "Shots on Target",
+        "Corners",
+        "Goals"
+    ]:
+
+        attack_defence_rows.append(
+            {
+                "Metric": metric,
+
+                "Home Attack": (
+                    f"{home_attack[metric]:.2f}"
+                    if home_attack[metric] is not None
+                    else "—"
+                ),
+
+                "Away Defence Conceded": (
+                    f"{away_defence[metric]:.2f}"
+                    if away_defence[metric] is not None
+                    else "—"
+                ),
+
+                "Away Attack": (
+                    f"{away_attack[metric]:.2f}"
+                    if away_attack[metric] is not None
+                    else "—"
+                ),
+
+                "Home Defence Conceded": (
+                    f"{home_defence[metric]:.2f}"
+                    if home_defence[metric] is not None
+                    else "—"
+                )
+            }
+        )
+
+    attack_defence_df = pd.DataFrame(
+        attack_defence_rows
+    )
+
+    st.dataframe(
+        attack_defence_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # SAMPLE SIZES
+    # ---------------------------------------------------------
+
+    s1, s2 = st.columns(2)
+
+    s1.metric(
+        f"{home_team} Home Sample",
+        len(home_matches)
+    )
+
+    s2.metric(
+        f"{away_team} Away Sample",
+        len(away_matches)
+    )
+
+    if len(home_matches) < 5:
+        st.warning(
+            f"{home_team}: fewer than 5 home matches "
+            "are available."
+        )
+
+    if len(away_matches) < 5:
+        st.warning(
+            f"{away_team}: fewer than 5 away matches "
+            "are available."
+        )
+
+    # ---------------------------------------------------------
+    # STEP 15 — CONTEXTUAL HOME / AWAY SAMPLES
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Contextual Home / Away Samples")
+
+    st.caption(
+        "Only home matches are used for the selected home team "
+        "and only away matches for the selected away team."
+    )
+
+    context_rows = []
+
+    context_metrics = [
+        ("Shots", "team_shots", "opp_shots"),
+        ("Shots on Target", "team_sot", "opp_sot"),
+        ("Corners", "team_corners", "opp_corners"),
+        ("Goals", "team_goals", "opp_goals")
+    ]
+
+    for label, team_col, opp_col in context_metrics:
+
+        context_rows.append(
+            {
+                "Metric": label,
+
+                f"{home_team} Home Produced": (
+                    f"{average_value(home_matches, team_col):.2f}"
+                    if average_value(
+                        home_matches,
+                        team_col
+                    ) is not None
+                    else "—"
+                ),
+
+                f"{home_team} Home Conceded": (
+                    f"{average_value(home_matches, opp_col):.2f}"
+                    if average_value(
+                        home_matches,
+                        opp_col
+                    ) is not None
+                    else "—"
+                ),
+
+                f"{away_team} Away Produced": (
+                    f"{average_value(away_matches, team_col):.2f}"
+                    if average_value(
+                        away_matches,
+                        team_col
+                    ) is not None
+                    else "—"
+                ),
+
+                f"{away_team} Away Conceded": (
+                    f"{average_value(away_matches, opp_col):.2f}"
+                    if average_value(
+                        away_matches,
+                        opp_col
+                    ) is not None
+                    else "—"
+                )
+            }
+        )
+
+    context_df = pd.DataFrame(
+        context_rows
+    )
+
+    st.dataframe(
+        context_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # STEP 16 — COMBINED MARKET VIEW
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Combined Market View")
+
+    market_team = st.selectbox(
+        "Team",
+        [home_team, away_team],
+        key="research_market_team"
+    )
+
+    if market_team == home_team:
+        market_sample_df = home_matches
+        opponent_sample_df = away_matches
+        opponent_defence_column_prefix = "opp_"
+    else:
+        market_sample_df = away_matches
+        opponent_sample_df = home_matches
+        opponent_defence_column_prefix = "opp_"
+
+    research_market = st.selectbox(
+        "Market",
+        [
+            "Shots",
+            "Shots on Target",
+            "Corners",
+            "Goals"
+        ],
+        key="research_market"
+    )
+
+    research_direction = st.selectbox(
+        "Direction",
+        ["Over", "Under"],
+        key="research_direction"
+    )
+
+    research_line = st.number_input(
+        "Line",
+        min_value=0.0,
+        max_value=30.0,
+        value=3.5,
+        step=0.5,
+        key="research_line"
+    )
+
+    market_column = MARKET_COLUMN_MAP[
+        research_market
+    ]
+
+    opponent_column = {
+        "Shots": "opp_shots",
+        "Shots on Target": "opp_sot",
+        "Corners": "opp_corners",
+        "Goals": "opp_goals"
+    }[research_market]
+
+    market_analysis = analyse_market(
+        market_sample_df,
+        research_market,
+        research_direction,
+        research_line
+    )
+
+    opponent_values = pd.to_numeric(
+        opponent_sample_df[opponent_column],
+        errors="coerce"
+    ).dropna()
+
+    if not opponent_values.empty:
+
+        if research_direction == "Over":
+            opponent_hits = (
+                opponent_values < research_line
+            ).sum()
+        else:
+            opponent_hits = (
+                opponent_values > research_line
+            ).sum()
+
+        opponent_rate = (
+            opponent_hits /
+            len(opponent_values)
+        )
+
+    else:
+        opponent_rate = None
+        opponent_hits = 0
+
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric(
+        "Team Market Hit Rate",
+        fmt_pct(
+            market_analysis["hit_rate"]
+        )
+    )
+
+    c2.metric(
+        "Team Hits",
+        market_analysis["hits"]
+    )
+
+    c3.metric(
+        "Team Sample",
+        market_analysis["sample_size"]
+    )
+
+    c4.metric(
+        "Opponent Context Rate",
+        fmt_pct(opponent_rate)
+    )
+
+    st.caption(
+        "Opponent Context Rate measures how often the opponent "
+        "conceded less/more than the selected line in the "
+        "relevant home/away sample. It is contextual evidence, "
+        "not a probability forecast."
+    )
+
+    # Market comparison table
+
+    combined_market_rows = [
+        {
+            "Team": market_team,
+            "Market": research_market,
+            "Direction": research_direction,
+            "Line": research_line,
+            "Team Historical Hit Rate": fmt_pct(
+                market_analysis["hit_rate"]
+            ),
+            "Team Hits": market_analysis["hits"],
+            "Team Sample": market_analysis["sample_size"],
+            "Opponent Context Rate": fmt_pct(
+                opponent_rate
+            ),
+            "Opponent Sample": len(
+                opponent_values
+            )
+        }
+    ]
+
+    combined_market_df = pd.DataFrame(
+        combined_market_rows
+    )
+
+    st.dataframe(
+        combined_market_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # STEP 17 — H2H
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Head-to-Head")
+
+    h2h = data[
+        (
+            (data["home_team"] == home_team) &
+            (data["away_team"] == away_team)
+        )
+        |
+        (
+            (data["home_team"] == away_team) &
+            (data["away_team"] == home_team)
+        )
+    ].copy()
+
+    if research_season != "All":
+        h2h = h2h[
+            h2h["season"] == research_season
+        ]
+
+    if research_competition != "All":
+        h2h = h2h[
+            h2h["competition"] == research_competition
+        ]
+
+    if "date" in h2h.columns:
+        h2h = h2h.sort_values(
+            "date",
+            ascending=False
+        )
+
+    if not h2h.empty:
+
+        h2h_display_columns = [
+            "date",
+            "home_team",
+            "away_team",
+            "home_goals",
+            "away_goals",
+            "home_shots",
+            "away_shots",
+            "home_sot",
+            "away_sot",
+            "home_corners",
+            "away_corners"
+        ]
+
+        available_h2h_columns = [
+            c for c in h2h_display_columns
+            if c in h2h.columns
+        ]
+
+        h2h_display = h2h[
+            available_h2h_columns
+        ].copy()
+
+        st.dataframe(
+            h2h_display,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        st.caption(
+            f"{len(h2h)} historical meeting(s) found "
+            "for the selected filters."
+        )
+
+    else:
+        st.info(
+            "No H2H matches were found for the selected "
+            "teams and filters."
+        )
+
+    # ---------------------------------------------------------
+    # STEP 18 — MATCH RESEARCH SUMMARY
+    # ---------------------------------------------------------
+
+    st.divider()
+    st.subheader("Match Research Summary")
+
+    home_sot = home_attack["Shots on Target"]
+    away_sot_conceded = away_defence["Shots on Target"]
+
+    away_sot = away_attack["Shots on Target"]
+    home_sot_conceded = home_defence["Shots on Target"]
+
+    summary_rows = [
+        {
+            "Area": "Home Attack — Shots",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_attack['Shots']:.2f}"
+                if home_attack["Shots"] is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Home Attack — SOT",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_sot:.2f}"
+                if home_sot is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Defence — SOT Conceded",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_sot_conceded:.2f}"
+                if away_sot_conceded is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Attack — Shots",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_attack['Shots']:.2f}"
+                if away_attack["Shots"] is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Away Attack — SOT",
+            "Team": away_team,
+            "Context": "Away",
+            "Value": (
+                f"{away_sot:.2f}"
+                if away_sot is not None
+                else "—"
+            )
+        },
+        {
+            "Area": "Home Defence — SOT Conceded",
+            "Team": home_team,
+            "Context": "Home",
+            "Value": (
+                f"{home_sot_conceded:.2f}"
+                if home_sot_conceded is not None
+                else "—"
+            )
+        }
+    ]
+
+    summary_df = pd.DataFrame(
+        summary_rows
+    )
+
+    st.dataframe(
+        summary_df,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    # ---------------------------------------------------------
+    # RECENT MATCHES — BOTH TEAMS
+    # ---------------------------------------------------------
+
+    st.subheader("Recent Relevant Matches")
+
+    home_recent = home_matches[
+        [
+            "date",
+            "home_team",
+            "away_team",
+            "team_shots",
+            "team_sot",
+            "team_corners",
+            "team_goals",
+            "opp_shots",
+            "opp_sot",
+            "opp_corners",
+            "opp_goals"
+        ]
+    ].copy()
+
+    home_recent.insert(
+        0,
+        "Research Team",
+        home_team
+    )
+
+    away_recent = away_matches[
+        [
+            "date",
+            "home_team",
+            "away_team",
+            "team_shots",
+            "team_sot",
+            "team_corners",
+            "team_goals",
+            "opp_shots",
+            "opp_sot",
+            "opp_corners",
+            "opp_goals"
+        ]
+    ].copy()
+
+    away_recent.insert(
+        0,
+        "Research Team",
+        away_team
+    )
+
+    recent_research = pd.concat(
+        [
+            home_recent,
+            away_recent
+        ],
+        ignore_index=True
+    )
+
+    if not recent_research.empty:
+
+        recent_research = recent_research.sort_values(
+            "date",
+            ascending=False
+        )
+
+        st.dataframe(
+            recent_research,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    else:
+        st.info(
+            "No recent relevant matches are available."
+        )
+
+    # ---------------------------------------------------------
+    # IMPORTANT RESEARCH NOTE
+    # ---------------------------------------------------------
+
+    st.info(
+        "Research note: these figures describe historical "
+        "match data. They do not establish the probability "
+        "of the next match and do not automatically classify "
+        "a market as safe."
+                )
 
 st.divider()
 st.caption("V1 deliberately avoids automatic 'safe bet' labels. The goal is to improve research quality and decision-making.")

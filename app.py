@@ -380,6 +380,7 @@ with tab3:
                 "Direction": direction,
                 "Line": line,
                 "Odds": odds,
+                "Status": "Watching",
                 "Historical Hit Rate": f"{historical_hit_rate:.1f}%" if historical_hit_rate is not None else "-",
                 "Break-even": f"{break_even_rate:.1f}%",
                 "Edge vs Break-even": edge_display,

@@ -11,21 +11,75 @@ st.title("⚽ Football Betting Research Tool — V1")
 st.caption("Research assistant, not a prediction engine. Use match-by-match data to test a market before betting.")
 
 REQUIRED_COLUMNS = [
-    "date", "home_team", "away_team", "home_goals", "away_goals",
-    "home_shots", "away_shots", "home_sot", "away_sot",
-    "home_corners", "away_corners"
+    "date",
+    "season",
+    "competition",
+    "home_team",
+    "away_team",
+    "home_goals",
+    "away_goals",
+    "home_shots",
+    "away_shots",
+    "home_sot",
+    "away_sot",
+    "home_corners",
+    "away_corners"
 ]
 
 def clean_data(df):
     df = df.copy()
-    df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
+
+    # Standardise column names
+    df.columns = [
+        str(c).strip().lower().replace(" ", "_")
+        for c in df.columns
+    ]
+
+    # Convert date
     if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce")
-    numeric = [c for c in REQUIRED_COLUMNS if c not in ["date", "home_team", "away_team"]]
-    for c in numeric:
+        df["date"] = pd.to_datetime(
+            df["date"],
+            errors="coerce"
+        )
+
+    # Convert season and competition to text
+    for c in ["season", "competition"]:
         if c in df.columns:
-            df[c] = pd.to_numeric(df[c], errors="coerce")
-    return df.dropna(subset=["home_team", "away_team"])
+            df[c] = (
+                df[c]
+                .astype(str)
+                .str.strip()
+                .replace("nan", "")
+            )
+
+    # Convert numerical columns
+    numeric_columns = [
+        c for c in REQUIRED_COLUMNS
+        if c not in [
+            "date",
+            "season",
+            "competition",
+            "home_team",
+            "away_team"
+        ]
+    ]
+
+    for c in numeric_columns:
+        if c in df.columns:
+            df[c] = pd.to_numeric(
+                df[c],
+                errors="coerce"
+            )
+
+    # Remove rows without teams
+    df = df.dropna(
+        subset=[
+            "home_team",
+            "away_team"
+        ]
+    )
+
+    return df
 
 def team_matches(df, team):
     h = df[df["home_team"].eq(team)].copy()
@@ -65,18 +119,18 @@ def hit_rate(series, line, over=True):
 def fmt_pct(x):
     return "—" if x is None or pd.isna(x) else f"{x*100:.1f}%"
 
-# Demo data
 demo = pd.DataFrame([
-    ["2026-09-18","Chelsea","Brentford",2,0,17,7,5,2,6,3],
-    ["2026-09-14","Everton","Chelsea",0,2,9,14,3,5,4,7],
-    ["2026-09-07","Chelsea","Fulham",3,1,19,8,7,3,8,2],
-    ["2026-08-30","Newcastle","Chelsea",1,1,12,11,4,4,5,5],
-    ["2026-08-24","Chelsea","Wolves",2,1,16,10,6,3,7,4],
-    ["2026-09-18","Bayern Munich","Union Berlin",3,1,20,7,8,2,8,2],
-    ["2026-09-13","Mainz","Bayern Munich",0,3,6,18,2,7,3,8],
-    ["2026-09-06","Bayern Munich","Freiburg",2,0,17,8,6,2,9,4],
-    ["2026-08-30","Dortmund","Bayern Munich",1,2,11,13,4,5,5,6],
-    ["2026-08-23","Bayern Munich","Leipzig",4,1,22,9,9,3,10,2],
+    ["2026-09-18","2026/27","Premier League","Chelsea","Brentford",2,0,17,7,5,2,6,3],
+    ["2026-09-14","2026/27","Premier League","Everton","Chelsea",0,2,9,14,3,5,4,7],
+    ["2026-09-07","2026/27","Premier League","Chelsea","Fulham",3,1,19,8,7,3,8,2],
+    ["2026-08-30","2026/27","Premier League","Newcastle","Chelsea",1,1,12,11,4,4,5,5],
+    ["2026-08-24","2026/27","Premier League","Chelsea","Wolves",2,1,16,10,6,3,7,4],
+
+    ["2026-09-18","2026/27","Bundesliga","Bayern Munich","Union Berlin",3,1,20,7,8,2,8,2],
+    ["2026-09-13","2026/27","Bundesliga","Mainz","Bayern Munich",0,3,6,18,2,7,3,8],
+    ["2026-09-06","2026/27","Bundesliga","Bayern Munich","Freiburg",2,0,17,8,6,2,9,4],
+    ["2026-08-30","2026/27","Bundesliga","Dortmund","Bayern Munich",1,2,11,13,4,5,5,6],
+    ["2026-08-23","2026/27","Bundesliga","Bayern Munich","Leipzig",4,1,22,9,9,3,10,2],
 ], columns=REQUIRED_COLUMNS)
 
 st.sidebar.header("1. Data")

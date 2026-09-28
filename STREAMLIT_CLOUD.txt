@@ -1,6 +1,0 @@
-Main file: app.py
-Python dependencies: requirements.txt
-Primary CSV: football_master_2024_27_v1.csv
-Optional source layers: Dataset 1 and Dataset 2 CSVs
-Dataset 3/4 builder: build_dataset_3_4.py
-Do not add API credentials to source code.
